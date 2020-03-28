@@ -1,4 +1,4 @@
-use crate::game::time::Time;
+use crate::game::time::{Time, Age};
 
 pub enum Condition {
     Normal,
@@ -26,28 +26,30 @@ impl HealthModifier for Sex {
     }
 }
 
+
+
 ///
 ///
 ///
-pub struct Person<'a> {
-    birthday: usize,
-    timer: &'a Time,
+pub struct Person {
+    age: Age,
     sex: Sex,
     pre_existing_condition: f64,
     health_points: u32,
     condition: Condition
 }
 
-impl <'a> Person<'a> {
-    fn new(birthday: usize,
-               timer: &'a Time,
+
+
+impl Person {
+
+    fn new(age: Age,
                sex: Sex,
                pre_existing_condition: f64,
                health_points: u32,
                condition: Condition) -> Self {
         Person {
-            birthday,
-            timer,
+            age,
             sex,
             pre_existing_condition,
             health_points,
@@ -71,21 +73,24 @@ impl <'a> Person<'a> {
             }
         }) * sex.get_health_modification_factor() * pre_existing_condition) as u32
     }
+
+    fn health_points(&self) -> &u32 {
+        &self.health_points
+    }
 }
 
 
 
-pub struct Population<'a> {
-    timer: &'a Time,
-    people: Vec<Person<'a>>,
+pub struct Population {
+    people: Vec<Person>,
     growth_rate: f64
 }
 
-impl<'a> Population<'a> {
+impl Population {
 
 
 
-    pub fn new(timer: &'a Time, growth_rate: f64, population: usize, population_distribution: fn(usize) -> f64) {
+    pub fn new(growth_rate: f64, population: usize, population_distribution: fn(usize) -> f64) {
 
     }
 }
