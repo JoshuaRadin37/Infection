@@ -1,8 +1,9 @@
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::hash::Hash;
-use crate::game::graph::GraphError::{IdExists, EdgeAlreadyExists};
-use std::ops::{Range, Index, IndexMut};
-use std::collections::hash_map::RandomState;
+use std::ops::{Index, IndexMut, Range};
+
+use crate::game::graph::GraphError::{EdgeAlreadyExists, IdDoesNotExist, IdExists};
 
 pub struct Node<ID = usize, T = ()> where ID : PartialEq + Copy {
     id: ID,
@@ -44,11 +45,14 @@ pub struct Graph<ID = usize, W = f64, T = ()>
     num_edges: usize,
 }
 
+
+#[derive(Debug)]
 enum GraphError<ID> {
     IdExists(ID),
     IdDoesNotExist(ID),
     EdgeAlreadyExists
 }
+
 
 type GraphResult<ID> = Result<(), GraphError<ID>>;
 
@@ -82,7 +86,12 @@ impl <ID, W, T> Graph<ID, W, T>
     }
 
     fn add_edge(&mut self, u: ID, v: ID, weight: W) -> GraphResult<ID> {
-        let mut map = self.adjacency.entry(u).or_insert(HashMap::new());
+        if !self.contains_node(u) {
+            return Err(IdDoesNotExist(u));
+        } else if  !self.contains_node(v) {
+            return Err(IdDoesNotExist(v));
+        }
+        let map = self.adjacency.entry(u).or_insert(HashMap::new());
         if map.contains_key(&v) {
             return Err(EdgeAlreadyExists)
         }
@@ -182,7 +191,7 @@ impl <ID, W, T> Index<(ID, ID)> for Graph<ID, W, T>
 
 #[cfg(test)]
 mod test {
-    use crate::game::graph::{Node, Graph};
+    use crate::game::graph::{Graph, Node};
 
     #[test]
     fn is_key_works() {
@@ -197,7 +206,7 @@ mod test {
         assert_eq!(g.num_edges, 0);
         assert_eq!(g.num_nodes, 0);
 
-        g.add_node(0, ());
+        g.add_node(0, ()).unwrap();
         assert_eq!(g.num_nodes, 1);
     }
 
@@ -205,7 +214,7 @@ mod test {
     fn add_range_of_ids() {
         let mut g: Graph = Graph::new();
 
-        g.add_nodes(0..10, ());
+        g.add_nodes(0..10, ()).unwrap();
         assert_eq!(g.num_nodes, 10);
     }
 
@@ -213,7 +222,7 @@ mod test {
     fn set_weight() {
         let mut g: Graph = Graph::new();
 
-        g.add_nodes(0..10, ());
+        g.add_nodes(0..10, ()).unwrap();
         assert!(!g.contains_edge(1, 2));
         assert!(g.add_edge(1, 2, 10.0).is_ok());
         assert!(g.contains_edge(1, 2));
@@ -225,7 +234,7 @@ mod test {
     #[test]
     fn change_value() {
         let mut g: Graph<i32, f64, i32> = Graph::new();
-        g.add_nodes(0..10, 10);
+        g.add_nodes(0..10, 10).unwrap();
         assert_eq!(g[3], 10);
         g[3] = 15;
         assert_eq!(g[3], 15);
@@ -235,10 +244,10 @@ mod test {
     fn get_adjacent() {
         let mut g: Graph = Graph::new();
 
-        g.add_nodes(0..10, ());
-        g.add_edge_default(0, 1);
-        g.add_edge_default(0, 3);
-        g.add_edge_default(0, 7);
+        g.add_nodes(0..10, ()).unwrap();
+        g.add_edge_default(0, 1).unwrap();
+        g.add_edge_default(0, 3).unwrap();
+        g.add_edge_default(0, 7).unwrap();
         let mut v = g.get_adjacent(0);
         v.sort();
 

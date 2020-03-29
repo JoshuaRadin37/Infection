@@ -1,4 +1,6 @@
-use std::sync::mpsc::RecvTimeoutError::Timeout;
+use std::ops::AddAssign;
+use std::thread::sleep;
+use std::time::Duration;
 
 use crate::game::time::TimeUnit;
 
@@ -6,6 +8,7 @@ pub mod board;
 pub mod graph;
 pub mod population;
 pub mod time;
+pub mod pathogen;
 
 
 pub static LAND_TRAVEL_TIME: f64 = 45.0;
@@ -15,6 +18,7 @@ pub static AIR_TRAVEL_TIME: f64 = 500.0;
 const TICKS_TO_GAME_MIN: usize = 20;
 
 pub trait Update {
+
 
     fn update_self(&mut self, delta_time: usize);
     fn get_update_children(&mut self) -> Vec<&mut dyn Update>;
@@ -27,6 +31,20 @@ pub trait Update {
     }
 
 
+}
+
+/// forces time passed to be at minimum one game minute
+pub fn min_wait(delta_time: &mut usize) {
+    while delta_time < &mut TICKS_TO_GAME_MIN {
+        tick();
+        delta_time.add_assign(1);
+    }
+}
+
+
+/// An in game tick
+pub fn tick() {
+    sleep(Duration::from_millis(1000 / 20));
 }
 
 pub fn tick_to_game_time_conversion(delta_time: usize) -> TimeUnit {

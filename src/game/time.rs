@@ -88,9 +88,9 @@ pub mod fmt {
 
     impl <'a, 'b> Display for TimeFormat<'a, 'b> {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-            let mut output = self.format_string;
+            let output = self.format_string;
 
-            let mut output = &*Regex::new("\\{:m(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:m(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -101,7 +101,7 @@ pub mod fmt {
                     }
                 );
 
-            let mut output = &*Regex::new("\\{:h(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:h(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -112,7 +112,7 @@ pub mod fmt {
                     }
                 );
 
-            let mut output = &*Regex::new("\\{:d(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:d(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -123,7 +123,7 @@ pub mod fmt {
                     }
                 );
 
-            let mut output = &*Regex::new("\\{:w(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:w(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -134,7 +134,7 @@ pub mod fmt {
                     }
                 );
 
-            let mut output = &*Regex::new("\\{:M(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:M(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -145,7 +145,7 @@ pub mod fmt {
                     }
                 );
 
-            let mut output = &*Regex::new("\\{:y(\\((\\d+)([mhdwMy])\\))?}")
+            let output = &*Regex::new("\\{:y(\\((\\d+)([mhdwMy])\\))?}")
                 .expect("Regular expression forming failed")
                 .replace_all(
                     &output,
@@ -211,7 +211,7 @@ impl TimeUnit {
         self.resolution_val().cmp(&other.resolution_val())
     }
 
-    fn format(&self, format_string: &str) -> String {
+    pub fn format(&self, format_string: &str) -> String {
         let form = TimeFormat::new(self, format_string);
         format!("{}", form)
     }

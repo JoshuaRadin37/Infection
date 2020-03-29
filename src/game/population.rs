@@ -1,4 +1,5 @@
-use crate::game::time::{Time, Age};
+use crate::game::pathogen::infection::Infection;
+use crate::game::time::{Age, Time};
 
 pub enum Condition {
     Normal,
@@ -28,15 +29,19 @@ impl HealthModifier for Sex {
 
 
 
+
+
 ///
-///
+/// The most basic component of the simulation
 ///
 pub struct Person {
     age: Age,
     sex: Sex,
     pre_existing_condition: f64,
     health_points: u32,
-    condition: Condition
+    condition: Condition,
+    modifiers: Vec<Box<dyn HealthModifier>>,
+    infection: Option<Infection>
 }
 
 
@@ -44,19 +49,22 @@ pub struct Person {
 impl Person {
 
     fn new(age: Age,
-               sex: Sex,
-               pre_existing_condition: f64,
-               health_points: u32,
-               condition: Condition) -> Self {
+           sex: Sex,
+           pre_existing_condition: f64,
+           health_points: u32,
+           condition: Condition) -> Self {
         Person {
             age,
             sex,
             pre_existing_condition,
             health_points,
-            condition
+            condition,
+            modifiers: Vec::new(),
+            infection: None
         }
     }
 
+    /// Determines the maximum health for a person depending on a few conditions
     fn max_health(age: u8, sex: &Sex, pre_existing_condition: f64) -> u32 {
         ((match age {
             0..=3 => {
@@ -74,8 +82,39 @@ impl Person {
         }) * sex.get_health_modification_factor() * pre_existing_condition) as u32
     }
 
-    fn health_points(&self) -> &u32 {
+
+    pub fn health_points(&self) -> &u32 {
         &self.health_points
+    }
+
+    pub fn alive(&self) -> bool {
+        self.health_points > 0
+    }
+
+    pub fn dead(&self) -> bool {
+        !self.alive()
+    }
+
+    pub fn uninfected(&self) -> bool {
+        self.infection.is_none()
+    }
+
+    pub fn infected(&self) -> bool {
+        match &self.infection {
+            None => { false },
+            Some(i) => {
+                !i.recovered()
+            },
+        }
+    }
+
+    pub fn recovered(&self) -> bool {
+        match &self.infection {
+            None => { false },
+            Some(i) => {
+                i.recovered()
+            },
+        }
     }
 }
 
