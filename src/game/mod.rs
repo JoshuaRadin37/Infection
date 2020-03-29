@@ -1,3 +1,7 @@
+use std::sync::mpsc::RecvTimeoutError::Timeout;
+
+use crate::game::time::TimeUnit;
+
 pub mod board;
 pub mod graph;
 pub mod population;
@@ -7,6 +11,8 @@ pub mod time;
 pub static LAND_TRAVEL_TIME: f64 = 45.0;
 pub static SEA_TRAVEL_TIME: f64 = 100.0;
 pub static AIR_TRAVEL_TIME: f64 = 500.0;
+
+const TICKS_TO_GAME_MIN: usize = 20;
 
 pub trait Update {
 
@@ -19,12 +25,19 @@ pub trait Update {
             child.update(delta_time);
         }
     }
+
+
+}
+
+pub fn tick_to_game_time_conversion(delta_time: usize) -> TimeUnit {
+    TimeUnit::Minutes(delta_time / TICKS_TO_GAME_MIN)
 }
 
 #[cfg(test)]
 mod test {
-    use crate::game::Update;
     use std::borrow::BorrowMut;
+
+    use crate::game::Update;
 
     struct UpdateObject(i32, Box<Option<(UpdateObject, UpdateObject)>>);
 
@@ -68,7 +81,7 @@ mod test {
                         (
                             UpdateObject::new(None),
                             UpdateObject::new(None)
-                            )
+                        )
                     ))
                 )
             )
