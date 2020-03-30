@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use rand::distributions::Distribution;
 use rand::Rng;
@@ -8,7 +9,7 @@ use crate::game::pathogen::Pathogen;
 use crate::game::time::{Age, TimeUnit};
 
 pub struct Infection {
-    pathogen: Rc<Pathogen>, // pathogen
+    pathogen: Arc<Pathogen>, // pathogen
     infection_age: Age, // age of the infection
     pathogen_count: usize,
     recovered: bool // if the person has recovered
@@ -16,7 +17,7 @@ pub struct Infection {
 
 impl Infection {
 
-    pub fn new(pathogen: Rc<Pathogen>) -> Self {
+    pub fn new(pathogen: Arc<Pathogen>) -> Self {
         Infection {
             pathogen,
             infection_age: Age::new(0, 0 ,0),
@@ -25,7 +26,7 @@ impl Infection {
         }
     }
 
-    pub fn get_pathogen(&self) -> &Rc<Pathogen> {
+    pub fn get_pathogen(&self) -> &Arc<Pathogen> {
         &self.pathogen
     }
 
@@ -72,6 +73,7 @@ impl Update for Infection {
 mod test {
     use std::collections::HashSet;
     use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::game::graph::Graph;
     use crate::game::pathogen::infection::Infection;
@@ -81,7 +83,7 @@ mod test {
     /// Checks if an infection will eventually become mature
     #[test]
     fn infection_starts() {
-        let pathogen = Rc::new(Pathogen::new("Testogen".to_string(),
+        let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
                                              1000,
                                              0.0005,
                                              0.03,

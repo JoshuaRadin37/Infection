@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Error, Formatter, Result};
 use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::usize;
 
 use crate::game::graph::{Graph, GraphResult, Node};
@@ -89,15 +90,15 @@ pub trait Symp {
 
 
 pub trait SymptomMap {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>>;
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>>;
 
-    fn new() -> Graph<usize, f64, Rc<Symptom>> {
+    fn new() -> Graph<usize, f64, Arc<Symptom>> {
         Graph::new()
     }
 }
 
-impl SymptomMap for Graph<usize, f64, Rc<Symptom>> {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>> {
+impl SymptomMap for Graph<usize, f64, Arc<Symptom>> {
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>> {
         self
     }
 }
@@ -111,8 +112,8 @@ impl Debug for Symptom {
 /// Enables easy creation of Symptoms and a Symptom Map
 /// > Handles the creation of RC pointers and ids
 pub struct SymptomMapBuilder {
-    symptoms_map: Graph<usize, f64, Rc<Symptom>>,
-    symptoms: Vec<Rc<Symptom>>,
+    symptoms_map: Graph<usize, f64, Arc<Symptom>>,
+    symptoms: Vec<Arc<Symptom>>,
     next_id: usize
 }
 
@@ -138,7 +139,7 @@ impl SymptomMapBuilder {
 
     pub fn add(&mut self, symptom: Symptom) -> SymptomMapBuilderEntry {
         let id = self.get_next_id();
-        let rc_ptr = Rc::new(symptom);
+        let rc_ptr = Arc::new(symptom);
         self.symptoms.push(rc_ptr.clone());
         self.symptoms_map.add_node(id, rc_ptr).unwrap();
         SymptomMapBuilderEntry::new(id, self)
@@ -146,7 +147,7 @@ impl SymptomMapBuilder {
 
     pub fn push(&mut self, symptom: Symptom) -> usize {
         let id = self.get_next_id();
-        let rc_ptr = Rc::new(symptom);
+        let rc_ptr = Arc::new(symptom);
         self.symptoms.push(rc_ptr.clone());
         self.symptoms_map.add_node(id, rc_ptr).unwrap();
         id
@@ -158,7 +159,7 @@ impl SymptomMapBuilder {
 }
 
 impl SymptomMap for SymptomMapBuilder {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>> {
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>> {
         self.symptoms_map
     }
 }

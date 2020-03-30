@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use infection::game::graph::Graph;
 use infection::game::pathogen::infection::Infection;
@@ -14,7 +15,7 @@ const ATTEMPTS: usize = 100;
 #[test]
 #[ignore]
 fn infection_recovery_test() {
-    let pathogen = Rc::new(Pathogen::new("Testogen".to_string(),
+    let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
                                          10000000,
                                          0.0005,
                                          0.03,

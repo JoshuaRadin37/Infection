@@ -1,6 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::game::graph::Graph;
 use crate::game::pathogen::Pathogen;
@@ -17,7 +18,7 @@ pub trait PathogenType{
     fn get_mutativity(&self) -> f64;
     fn get_recovery_base_chance(&self) -> f64;
     fn get_recovery_chance_increase(&self) -> f64;
-    fn get_symptoms_map(&self) -> (Graph<usize, f64, Rc<Symptom>>, HashSet<usize>);
+    fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>);
 
 
     fn create_pathogen(&self, name: &str, mutation_ticks: usize) -> Pathogen {
@@ -65,7 +66,7 @@ impl PathogenType for Virus {
     }
 
 
-    fn get_symptoms_map(&self) -> (Graph<usize, f64, Rc<Symptom>>, HashSet<usize>) {
+    fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>) {
         let mut builder = SymptomMapBuilder::new();
         let mut set = HashSet::new();
 

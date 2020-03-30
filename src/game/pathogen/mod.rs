@@ -2,6 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Error, Formatter, Result};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use rand::Rng;
 
@@ -25,7 +26,7 @@ pub struct Pathogen {
     mutation: f64, // chance on new infection the pathogen mutates
     recovery_chance_base: f64, // chance of recovery after TimeUnit (converted to Minutes)
     recovery_chance_increase: f64, // change of recovery over time
-    symptoms_map: Graph<usize, f64, Rc<Symptom>>, // map of possible symptoms that a pathogen can have
+    symptoms_map: Graph<usize, f64, Arc<Symptom>>, // map of possible symptoms that a pathogen can have
     acquired_map: HashSet<usize> // the set of acquired symptoms
 }
 
