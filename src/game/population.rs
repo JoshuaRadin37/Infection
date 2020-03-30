@@ -166,7 +166,8 @@ impl Update for Person {
 
 
 pub struct Population {
-    people: Vec<Person>,
+    people: Vec<Rc<RefCell<Person>>>,
+    infected: Vec<Rc<RefCell<Person>>>,
     growth_rate: f64,
 }
 
@@ -197,7 +198,7 @@ impl Population {
             for _ in 0..people_count {
 
                 pop.push(
-
+                    Rc::new(RefCell::new(
                     Person::new(
                         Age::new(age as u16,
                                  rng.gen_range::<usize, usize, usize>(0, 12),
@@ -208,6 +209,7 @@ impl Population {
                             i => { 100.0 }
                         } / 100.0
                     )
+                    ))
                 );
 
             }
@@ -215,22 +217,25 @@ impl Population {
 
         while people_created < population {
             pop.push(
+                Rc::new(RefCell::new(
                 Person::new(
                     Age::new(0, 0, 0),
                     if rng.gen_bool(0.5) { Male} else { Female},
                     1.0
                 )
+                ))
             );
             people_created += 1;
         }
 
         Population {
             people: pop,
+            infected: Vec::new(),
             growth_rate
         }
     }
 
-    pub fn infect_one(&mut self, pathogen: &Rc<Pathogen>) {
+    pub fn infect_one(&mut self, pathogen: &Rc<Pathogen>) -> bool {
         if self.people.is_empty() {
             panic!("Population is empty, can't infect anyone");
         }
@@ -238,9 +243,10 @@ impl Population {
         loop {
             let person_id = (random::<f64>() * self.people.len() as f64) as usize;
 
-            let person = self.people.get_mut(person_id).unwrap();
-            if person.infect(pathogen) {
-                self.infected.push(person)
+            let person = self.people.get(person_id).unwrap().clone();
+            if person.borrow_mut().infect(pathogen) {
+                self.infected.push(person);
+                break true;
             }
         }
     }
@@ -258,6 +264,7 @@ impl Population {
 
 #[cfg(test)]
 mod test {
+    use std::borrow::{Borrow, BorrowMut};
     use std::collections::HashSet;
     use std::rc::Rc;
 
@@ -305,8 +312,16 @@ mod test {
     }
 
     #[test]
+    fn can_infect_a_population() {
+        let mut pop = Population::new(0.0, 1000, UniformDistribution);
+        let mut pathogen = Rc::new(Virus.create_pathogen("Test", 100));
+        assert!(pop.infect_one(&pathogen));
+    }
+
+    #[test]
     fn community_transfer() {
         let mut pop = Population::new(0.0, 1000, UniformDistribution);
-        print!("");
+        let mut pathogen = Rc::new(Virus.create_pathogen("Test", 100));
+        assert!(pop.infect_one(&pathogen));
     }
 }
