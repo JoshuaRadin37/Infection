@@ -1,6 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Error, Formatter, Result};
+use std::io::Read;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -8,6 +9,7 @@ use rand::Rng;
 
 use crate::game::graph::Graph;
 use crate::game::pathogen::symptoms::{Symptom, SymptomMap};
+use crate::game::population::Person;
 use crate::game::time::{Time, TimeUnit};
 
 pub mod infection;
@@ -15,7 +17,8 @@ pub mod symptoms;
 pub mod types;
 
 
-#[derive(Debug)]
+
+
 pub struct Pathogen {
     name: String, // name of the pathogen
     catch_chance: f64, // chance spreads per interaction
@@ -27,9 +30,16 @@ pub struct Pathogen {
     recovery_chance_base: f64, // chance of recovery after TimeUnit (converted to Minutes)
     recovery_chance_increase: f64, // change of recovery over time
     symptoms_map: Graph<usize, f64, Arc<Symptom>>, // map of possible symptoms that a pathogen can have
-    acquired_map: HashSet<usize> // the set of acquired symptoms
+    acquired_map: HashSet<usize>, // the set of acquired symptoms
+    on_recover: Vec<Arc<dyn Fn(&mut Person) + Send + Sync>>, // a vector of functions that affect a person after recovery
+    recover_function_position: HashMap<usize, usize> // map of a symptoms ID to it's recovery function
 }
 
+impl Debug for Pathogen {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Pathogen {}", self.name)
+    }
+}
 
 
 impl Pathogen {
@@ -60,7 +70,9 @@ impl Pathogen {
             recovery_chance_base,
             recovery_chance_increase,
             symptoms_map: symptoms_map.get_map(),
-            acquired_map: acquired.clone()
+            acquired_map: acquired.clone(),
+            on_recover: Vec::new(),
+            recover_function_position: Default::default()
         };
 
         for ref node in acquired {
@@ -163,6 +175,17 @@ impl Pathogen {
         days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0)
     }
 
+    fn add_recovery_symptom<F>(&mut self, function: F)
+    where F : 'static + Fn(&mut Person) + Send + Sync {
+        self.on_recover.push(Arc::new(function))
+    }
+
+    fn perform_recovery(&self, person: &mut Person) {
+        for funcs in &self.on_recover {
+            funcs(person)
+        }
+    }
+
     pub fn mutate(&self) -> Self {
 
         let mut mutated_graph = self.symptoms_map.clone();
@@ -177,7 +200,9 @@ impl Pathogen {
             recovery_chance_base: self.recovery_chance_base,
             recovery_chance_increase: self.recovery_chance_increase,
             symptoms_map: mutated_graph,
-            acquired_map: self.acquired_map.clone()
+            acquired_map: self.acquired_map.clone(),
+            on_recover: self.on_recover.clone(),
+            recover_function_position: self.recover_function_position.clone()
         };
 
 

@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
 use std::ops::DerefMut;
@@ -61,6 +61,7 @@ pub struct Person {
     condition: Condition,
     modifiers: Vec<Box<dyn HealthModifier + Sync + Send>>,
     infection: Option<Infection>,
+    recovered_status: RwLock<bool>,
 }
 
 
@@ -81,6 +82,7 @@ impl Person {
             condition: Normal,
             modifiers: Vec::new(),
             infection: None,
+            recovered_status: RwLock::new(false)
         }
     }
 
@@ -132,8 +134,19 @@ impl Person {
         match &self.infection {
             None => { false }
             Some(i) => {
-                i.recovered()
+                if i.recovered() && !*self.recovered_status.read().unwrap(){
+                    *self.recovered_status.write().unwrap() = true
+
+                }
+                *self.recovered_status.read().unwrap()
             }
+        }
+    }
+
+    /// Removes the immunity from someone
+    pub fn remove_immunity(&mut self) {
+        if self.recovered() && self.infection.is_some(){
+            self.infection = None;
         }
     }
 
@@ -146,6 +159,7 @@ impl Person {
             false
         }
     }
+
 
     pub fn interact_with<'a>(&self, other: &'a mut Person) -> &'a Person {
         if self.infected() {
@@ -162,6 +176,7 @@ impl Person {
         }
         other
     }
+
 }
 
 impl PartialEq for Person {

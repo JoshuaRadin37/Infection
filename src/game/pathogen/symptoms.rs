@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::usize;
 
 use crate::game::graph::{Graph, GraphResult, Node};
+use crate::game::population::Person;
 
 pub struct Symptom {
     name: String,
@@ -14,7 +15,8 @@ pub struct Symptom {
     fatality_increase: f64, // percentage increase
     internal_spread_rate_increase: f64, // percentage increase
     recovery_chance_base: Option<f64>,
-    additional_effect: Option<Box<fn()>>
+    additional_effect: Option<fn()>,
+    recovery_function: Option<Arc<dyn Fn(&mut Person) + Send + Sync>>
 }
 
 impl Symptom {
@@ -26,7 +28,9 @@ impl Symptom {
                fatality_increase: f64,
                internal_spread_rate_increase: f64,
                recovery_chance_base: Option<f64>,
-               additional_effect: Option<fn()>) -> Self {
+               additional_effect: Option<fn()>,
+               recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
+        -> Self {
         Symptom {
             name,
             description,
@@ -37,8 +41,9 @@ impl Symptom {
             recovery_chance_base,
             additional_effect: match additional_effect {
                 None => { None },
-                Some(f) => { Some(Box::new(f))},
-            }
+                Some(f) => { Some(f)},
+            },
+            recovery_function: recovery_function.map(|f| f.clone())
         }
     }
 
@@ -199,10 +204,14 @@ impl <'a> SymptomMapBuilderEntry<'a> {
 }
 
 pub mod base {
+    use std::sync::Arc;
+
     use crate::game::pathogen::symptoms::{Symp, Symptom};
 
     /// Person can never recover
+    #[cfg(test)]
     pub struct Undying;
+    #[cfg(test)]
     impl Symp for Undying {
         fn get_symptom(&self) -> Symptom {
             Symptom::new(
@@ -213,7 +222,32 @@ pub mod base {
                 1.0,
                 1.0,
                 Some(0.0),
+                None,
                 None
+            )
+        }
+    }
+
+    // Person are never immune to the Pathogen by forcing the Person to remove their infection
+    pub struct NeverImmune;
+    impl Symp for NeverImmune {
+        fn get_symptom(&self) -> Symptom {
+            Symptom::new(
+                "Immunity Immunity".to_string(),
+                "The immune system can never beat the pathogen, and the person will never recover".to_string(),
+                100.0,
+                1.0001,
+                1.0,
+                1.0,
+                Some(0.0),
+                None,
+                Some(
+                    &Arc::new(
+                        |person| {
+                            person.remove_immunity()
+                        }
+                    )
+                )
             )
         }
     }
@@ -228,6 +262,7 @@ pub mod base {
                 1.0001,
                 1.0,
                 1.0,
+                None,
                 None,
                 None
             )
@@ -244,6 +279,7 @@ pub mod base {
                 1.1,
                 1.0,
                 1.0,
+                None,
                 None,
                 None
             )
