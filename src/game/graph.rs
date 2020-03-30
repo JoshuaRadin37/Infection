@@ -61,7 +61,7 @@ pub struct Graph<ID = usize, W = f64, T = ()>
         ID : Eq + Hash + Copy  {
     adjacency: HashMap<ID, HashMap<ID, W>>,
     nodes: HashMap<ID, Node<ID, T>>,
-    edges: Vec<(ID, ID, W)>,
+    edges: Vec<(ID, ID)>,
     num_nodes: usize,
     num_edges: usize,
 }
@@ -138,7 +138,7 @@ impl <ID, W, T> Graph<ID, W, T>
         if map.contains_key(&v) {
             return Err(EdgeAlreadyExists)
         }
-        self.edges.push((u, v, weight));
+        self.edges.push((u, v));
         map.insert(v, weight);
         Ok(())
     }
@@ -180,7 +180,7 @@ impl <ID, W, T> Graph<ID, W, T>
         self.nodes.values()
     }
 
-    pub fn edges(&self) -> impl Iterator<Item=&(ID, ID, W)> {
+    pub fn edges(&self) -> impl Iterator<Item=&(ID, ID)> {
         self.edges.iter()
     }
 

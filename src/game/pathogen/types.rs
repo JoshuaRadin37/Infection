@@ -85,7 +85,6 @@ mod test {
     fn mutation_works() {
 
         let pathogen = Virus.create_pathogen("Test", 100);
-        println!("{:?}", pathogen);
 
 
     }

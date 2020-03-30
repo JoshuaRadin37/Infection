@@ -12,6 +12,7 @@ pub struct Symptom {
     severity_increase: f64, // percentage increase
     fatality_increase: f64, // percentage increase
     internal_spread_rate_increase: f64, // percentage increase
+    recovery_chance_base: Option<f64>,
     additional_effect: Option<Box<fn()>>
 }
 
@@ -23,6 +24,7 @@ impl Symptom {
                severity_increase: f64,
                fatality_increase: f64,
                internal_spread_rate_increase: f64,
+               recovery_chance_base: Option<f64>,
                additional_effect: Option<fn()>) -> Self {
         Symptom {
             name,
@@ -31,6 +33,7 @@ impl Symptom {
             severity_increase,
             fatality_increase,
             internal_spread_rate_increase,
+            recovery_chance_base,
             additional_effect: match additional_effect {
                 None => { None },
                 Some(f) => { Some(Box::new(f))},
@@ -62,8 +65,12 @@ impl Symptom {
         self.internal_spread_rate_increase
     }
 
+    pub fn get_recovery_chance_base(&self) -> &Option<f64> {
+        &self.recovery_chance_base
+    }
+
     pub fn can_reverse(&self) -> bool {
-        self.additional_effect.is_none()
+        self.additional_effect.is_none() && self.recovery_chance_base.is_none()
     }
 
     pub fn additional_effect(&self) {
@@ -193,6 +200,23 @@ impl <'a> SymptomMapBuilderEntry<'a> {
 pub mod base {
     use crate::game::pathogen::symptoms::{Symp, Symptom};
 
+    /// Person can never recover
+    pub struct Undying;
+    impl Symp for Undying {
+        fn get_symptom(&self) -> Symptom {
+            Symptom::new(
+                "Immunity Immunity".to_string(),
+                "The immune system can never beat the pathogen, and the person will never recover".to_string(),
+                100.0,
+                1.0001,
+                1.0,
+                1.0,
+                Some(0.0),
+                None
+            )
+        }
+    }
+
     pub struct RunnyNose;
     impl Symp for RunnyNose {
         fn get_symptom(&self) -> Symptom {
@@ -203,6 +227,7 @@ pub mod base {
                 1.0001,
                 1.0,
                 1.0,
+                None,
                 None
             )
         }
@@ -218,6 +243,7 @@ pub mod base {
                 1.1,
                 1.0,
                 1.0,
+                None,
                 None
             )
         }

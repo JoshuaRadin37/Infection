@@ -165,8 +165,24 @@ pub struct Population<'a> {
     growth_rate: f64,
 }
 
+/// Represents the distribution of ages in a population
+pub trait PopulationDistribution {
+    /// Gets the percent of the population of an age
+    /// The lower bounds of this function is 0 and the upperbounds is 120
+    /// The area under the curve of the function is 1
+    fn get_percent_of_pop(self, age: usize) -> f64;
+}
+
+impl <F> PopulationDistribution for F where F : Fn(usize) -> f64 {
+    fn get_percent_of_pop(self, age: usize) -> f64 {
+        self(age)
+    }
+}
+
+
+
 impl<'a> Population<'a> {
-    pub fn new(growth_rate: f64, population: usize, population_distribution: fn(usize) -> f64) -> Self {
+    pub fn new<T : PopulationDistribution>(growth_rate: f64, population: usize, population_distribution: T) -> Self {
         todo!()
     }
 }
@@ -178,19 +194,31 @@ mod test {
 
     use crate::game::graph::Graph;
     use crate::game::pathogen::Pathogen;
+    use crate::game::pathogen::symptoms::base::Undying;
+    use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
-    use crate::game::population::Person;
+    use crate::game::population::{Person, Population, PopulationDistribution};
     use crate::game::population::Sex::Male;
     use crate::game::time::Age;
     use crate::game::Update;
 
+    struct UniformDistribution;
+
+    impl PopulationDistribution for UniformDistribution {
+        fn get_percent_of_pop(self, age: usize) -> f64 {
+            1.0 / 120.0
+        }
+    }
+
     #[test]
-    fn community_transfer() {
+    fn can_transfer() {
         let mut person_a = Person::new(Age::new(17, 0, 0), Male, 1.00);
         let mut person_b = Person::new(Age::new(17, 0, 0), Male, 1.00);
-
-        let pathogen = Rc::new(Virus.create_pathogen("Testogen", 100));
-
+        let mut p = Virus.create_pathogen("Test", 100);
+        p.acquire_symptom(
+            &Undying.get_symptom()
+        );
+        let pathogen = Rc::new(p);
 
         person_a.infect(&pathogen);
         if !person_a.infected() {
@@ -205,5 +233,11 @@ mod test {
         if !person_b.infected() {
             panic!("Person B wasn't infected before Person A recovered")
         }
+    }
+
+    #[test]
+    fn community_transfer() {
+        let mut pop = Population::new(0.0, 1000, UniformDistribution);
+
     }
 }

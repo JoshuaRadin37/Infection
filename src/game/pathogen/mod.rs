@@ -29,9 +29,6 @@ pub struct Pathogen {
     acquired_map: HashSet<usize> // the set of acquired symptoms
 }
 
-impl Graph<usize, f64, Rc<Symptom>> {
-
-}
 
 
 impl Pathogen {
@@ -100,9 +97,9 @@ impl Pathogen {
     fn sum_weights_onto_node(&self, id: &usize) -> f64 {
         let mut output = 0.0;
 
-        for (_, v, weight) in self.symptoms_map.edges() {
+        for (u, v) in self.symptoms_map.edges() {
             if id == v {
-                output += *weight;
+                output += *self.symptoms_map.get_weight(*u, *v).unwrap();
             }
         }
 
@@ -131,11 +128,17 @@ impl Pathogen {
         self.severity *= symptom.get_severity_increase();
         self.fatality *= symptom.get_fatality_increase();
         self.internal_spread_rate *= symptom.get_severity_increase();
-
+        if let Some(base) = symptom.get_recovery_chance_base() {
+            self.recovery_chance_base = *base;
+        }
+        symptom.additional_effect()
     }
 
     pub fn remove_symptom(&mut self, symptom: &Symptom) {
-        todo!()
+        self.catch_chance /= symptom.get_catch_chance_increase();
+        self.severity /= symptom.get_severity_increase();
+        self.fatality /= symptom.get_fatality_increase();
+        self.internal_spread_rate /= symptom.get_severity_increase();
     }
 
     pub fn name(&self) -> &String {

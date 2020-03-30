@@ -103,6 +103,5 @@ mod test {
             }
             infection.update(20);
         }
-        print!("")
     }
 }
