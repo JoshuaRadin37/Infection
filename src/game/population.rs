@@ -1,8 +1,14 @@
+use std::borrow::Borrow;
+use std::cell::{Ref, RefCell};
+use std::ops::DerefMut;
 use std::rc::Rc;
+
+use rand::{random, Rng};
 
 use crate::game::pathogen::infection::Infection;
 use crate::game::pathogen::Pathogen;
 use crate::game::population::Condition::{Normal, Sick};
+use crate::game::population::Sex::{Female, Male};
 use crate::game::time::{Age, Time};
 use crate::game::Update;
 
@@ -159,9 +165,8 @@ impl Update for Person {
 }
 
 
-pub struct Population<'a> {
+pub struct Population {
     people: Vec<Person>,
-    infected: Vec<&'a Person>,
     growth_rate: f64,
 }
 
@@ -170,20 +175,84 @@ pub trait PopulationDistribution {
     /// Gets the percent of the population of an age
     /// The lower bounds of this function is 0 and the upperbounds is 120
     /// The area under the curve of the function is 1
-    fn get_percent_of_pop(self, age: usize) -> f64;
+    fn get_percent_of_pop(&self, age: usize) -> f64;
 }
 
 impl <F> PopulationDistribution for F where F : Fn(usize) -> f64 {
-    fn get_percent_of_pop(self, age: usize) -> f64 {
+    fn get_percent_of_pop(&self, age: usize) -> f64 {
         self(age)
     }
 }
 
 
 
-impl<'a> Population<'a> {
+impl Population {
     pub fn new<T : PopulationDistribution>(growth_rate: f64, population: usize, population_distribution: T) -> Self {
-        todo!()
+        let mut pop = Vec::new();
+        let mut people_created = 0;
+        let mut rng = rand::thread_rng();
+        for age in 0..121 {
+            let people_count  = (population as f64 * population_distribution.get_percent_of_pop(age)) as usize;
+            people_created += people_count;
+            for _ in 0..people_count {
+
+                pop.push(
+
+                    Person::new(
+                        Age::new(age as u16,
+                                 rng.gen_range::<usize, usize, usize>(0, 12),
+                                 rng.gen_range::<usize, usize, usize>(0, 28)),
+                        if rng.gen_bool(0.5) { Male} else { Female},
+                        match rng.gen_range::<f64, f64, f64>(30.0, 200.0) {
+                            i if i < 100.0 => { i },
+                            i => { 100.0 }
+                        } / 100.0
+                    )
+                );
+
+            }
+        }
+
+        while people_created < population {
+            pop.push(
+                Person::new(
+                    Age::new(0, 0, 0),
+                    if rng.gen_bool(0.5) { Male} else { Female},
+                    1.0
+                )
+            );
+            people_created += 1;
+        }
+
+        Population {
+            people: pop,
+            growth_rate
+        }
+    }
+
+    pub fn infect_one(&mut self, pathogen: &Rc<Pathogen>) {
+        if self.people.is_empty() {
+            panic!("Population is empty, can't infect anyone");
+        }
+
+        loop {
+            let person_id = (random::<f64>() * self.people.len() as f64) as usize;
+
+            let person = self.people.get_mut(person_id).unwrap();
+            if person.infect(pathogen) {
+                self.infected.push(person)
+            }
+        }
+    }
+
+    pub fn remove_infected(&mut self, person: &Person) {
+
+    }
+
+    pub fn get_infected(&self) -> Vec<&Person> {
+        let mut output = Vec::new();
+
+        output
     }
 }
 
@@ -205,7 +274,7 @@ mod test {
     struct UniformDistribution;
 
     impl PopulationDistribution for UniformDistribution {
-        fn get_percent_of_pop(self, age: usize) -> f64 {
+        fn get_percent_of_pop(&self, age: usize) -> f64 {
             1.0 / 120.0
         }
     }
@@ -238,6 +307,6 @@ mod test {
     #[test]
     fn community_transfer() {
         let mut pop = Population::new(0.0, 1000, UniformDistribution);
-
+        print!("");
     }
 }
