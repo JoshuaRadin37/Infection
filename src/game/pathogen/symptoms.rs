@@ -30,7 +30,7 @@ impl Symptom {
                recovery_chance_base: Option<f64>,
                additional_effect: Option<fn()>,
                recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
-        -> Self {
+               -> Self {
         Symptom {
             name,
             description,
@@ -84,6 +84,11 @@ impl Symptom {
             None => {},
             Some(b) => { b() },
         }
+    }
+
+
+    pub fn get_recovery_effect(&self) -> &Option<Arc<dyn Fn(&mut Person) + Send + Sync>> {
+        &self.recovery_function
     }
 
 }
@@ -207,11 +212,10 @@ pub mod base {
     use std::sync::Arc;
 
     use crate::game::pathogen::symptoms::{Symp, Symptom};
+    use crate::game::population::Person;
 
     /// Person can never recover
-    #[cfg(test)]
     pub struct Undying;
-    #[cfg(test)]
     impl Symp for Undying {
         fn get_symptom(&self) -> Symptom {
             Symptom::new(
@@ -228,10 +232,24 @@ pub mod base {
         }
     }
 
+    pub fn create_recovery_function<'a, F>(function: F) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
+        where F : Fn(&'a mut Person) + Send + Sync + 'a {
+        let output: Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a> = Arc::new(function);
+        output
+    }
+
     // Person are never immune to the Pathogen by forcing the Person to remove their infection
     pub struct NeverImmune;
     impl Symp for NeverImmune {
         fn get_symptom(&self) -> Symptom {
+
+            let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
+                |person| {
+                    person.remove_immunity();
+                }
+            );
+
+
             Symptom::new(
                 "Immunity Immunity".to_string(),
                 "The immune system can never beat the pathogen, and the person will never recover".to_string(),
@@ -242,13 +260,10 @@ pub mod base {
                 Some(0.0),
                 None,
                 Some(
-                    &Arc::new(
-                        |person| {
-                            person.remove_immunity()
-                        }
-                    )
+                    &function
                 )
             )
+
         }
     }
 
@@ -284,6 +299,21 @@ pub mod base {
                 None
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::game::pathogen::symptoms::base::NeverImmune;
+    use crate::game::pathogen::symptoms::Symp;
+    use crate::game::pathogen::types::{PathogenType, Virus};
+
+    #[test]
+    fn never_immune_removes_immunity() {
+        let mut p = Virus.create_pathogen("Test", 0);
+        p.acquire_symptom(&NeverImmune.get_symptom(), None);
+
+
     }
 }
 

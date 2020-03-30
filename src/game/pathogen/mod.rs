@@ -77,7 +77,7 @@ impl Pathogen {
 
         for ref node in acquired {
             let symptom = &*pathogen.symptoms_map.get(node).unwrap().clone();
-            pathogen.acquire_symptom(symptom);
+            pathogen.acquire_symptom(symptom, Some(*node));
         }
         pathogen
     }
@@ -136,7 +136,7 @@ impl Pathogen {
         output
     }
 
-    pub fn acquire_symptom(&mut self, symptom: &Symptom) {
+    pub fn acquire_symptom(&mut self, symptom: &Symptom, symptom_id: Option<usize>) {
         self.catch_chance *= symptom.get_catch_chance_increase();
         self.severity *= symptom.get_severity_increase();
         self.fatality *= symptom.get_fatality_increase();
@@ -144,14 +144,28 @@ impl Pathogen {
         if let Some(base) = symptom.get_recovery_chance_base() {
             self.recovery_chance_base = *base;
         }
+        if let Some(function) = symptom.get_recovery_effect() {
+            let index = self.on_recover.len();
+            self.on_recover.push((*function).clone());
+            if let Some(id) = symptom_id {
+                self.recover_function_position.insert(id, index);
+            }
+        }
         symptom.additional_effect()
     }
 
-    pub fn remove_symptom(&mut self, symptom: &Symptom) {
+    pub fn remove_symptom(&mut self, symptom: &Symptom, symptom_id: Option<usize>) {
         self.catch_chance /= symptom.get_catch_chance_increase();
         self.severity /= symptom.get_severity_increase();
         self.fatality /= symptom.get_fatality_increase();
         self.internal_spread_rate /= symptom.get_severity_increase();
+
+        if let Some(id) = symptom_id {
+            if self.recover_function_position.contains_key(&id) {
+                self.on_recover.remove(id);
+                self.recover_function_position.remove(&id);
+            }
+        }
     }
 
     pub fn name(&self) -> &String {
@@ -180,7 +194,7 @@ impl Pathogen {
         self.on_recover.push(Arc::new(function))
     }
 
-    fn perform_recovery(&self, person: &mut Person) {
+    pub fn perform_recovery(&self, person: &mut Person) {
         for funcs in &self.on_recover {
             funcs(person)
         }
@@ -210,7 +224,7 @@ impl Pathogen {
 
         for (id, chance) in potential_gains {
             if Self::roll(chance) && !next_pathogen.acquired_map.contains(id) {
-                next_pathogen.acquire_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut());
+                next_pathogen.acquire_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut(), Some(*id));
                 next_pathogen.acquired_map.insert(*id);
             }
         }
@@ -219,11 +233,61 @@ impl Pathogen {
 
         for (id, chance) in potential_losses {
             if Self::roll(chance) && next_pathogen.acquired_map.contains(id) {
-                next_pathogen.remove_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut());
+                next_pathogen.remove_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut(), Some(*id));
                 next_pathogen.acquired_map.remove(id);
             }
         }
 
         next_pathogen
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::{Arc, Mutex};
+
+    use crate::game::pathogen::Pathogen;
+    use crate::game::pathogen::symptoms::Symptom;
+    use crate::game::pathogen::types::{PathogenType, Virus};
+    use crate::game::population::Person;
+    use crate::game::population::Sex::Male;
+    use crate::game::time::Age;
+
+    #[test]
+    fn test_add_and_remove_on_recover_function() {
+        let mut p = Virus.create_pathogen("Test", 0);
+        let count = Arc::new(Mutex::new(0));
+        let count_clone = count.clone();
+        let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
+            move |person| {
+                *count_clone.lock().unwrap() = 1;
+            }
+        );
+
+
+        let s =Symptom::new(
+            "Test".to_string(),
+            "Test".to_string(),
+            100.0,
+            1.0001,
+            1.0,
+            1.0,
+            Some(0.0),
+            None,
+            Some(
+                &function
+            )
+        );
+
+        p.acquire_symptom(&s, Some(0));
+        assert_eq!(p.on_recover.len(), 1, "Although symptom had recover function, wasn't added to list");
+        let mut person_a = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
+        person_a.infect(&Arc::new(p));
+
+
+        p.perform_recovery(&mut person_a);
+        assert_eq!(*count.lock().unwrap(), 1, "Problem with recovery functions acting on objects");
+        p.remove_symptom(&s, Some(0));
+        assert_eq!(p.on_recover.len(), 0, "Although symptom had recover function, wasn't removed to list");
     }
 }

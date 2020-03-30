@@ -3,7 +3,7 @@ use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
 use std::ops::DerefMut;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -54,19 +54,19 @@ impl HealthModifier for Sex {
 ///
 pub struct Person {
     id: usize,
-    age: Age,
-    sex: Sex,
+    age: Mutex<Age>,
+    sex: Mutex<Sex>,
     pre_existing_condition: f64,
     health_points: u32,
-    condition: Condition,
-    modifiers: Vec<Box<dyn HealthModifier + Sync + Send>>,
-    infection: Option<Infection>,
+    condition: Mutex<Condition>,
+    modifiers: Mutex<Vec<Box<dyn HealthModifier + Sync + Send>>>,
+    infection: Mutex<Option<Infection>>,
     recovered_status: RwLock<bool>,
 }
 
 
 impl Person {
-    fn new(
+    pub(crate) fn new(
         id: usize,
         age: Age,
         sex: Sex,
@@ -75,13 +75,13 @@ impl Person {
 
         Person {
             id,
-            age,
-            sex,
+            age: Mutex::new(age),
+            sex: Mutex::new(sex),
             pre_existing_condition,
             health_points: health,
-            condition: Normal,
-            modifiers: Vec::new(),
-            infection: None,
+            condition: Mutex::new(Normal),
+            modifiers: Mutex::new(Vec::new()),
+            infection: Mutex::new(None),
             recovered_status: RwLock::new(false)
         }
     }
@@ -118,11 +118,11 @@ impl Person {
     }
 
     pub fn uninfected(&self) -> bool {
-        self.infection.is_none()
+        self.infection.lock().unwrap().is_none()
     }
 
     pub fn infected(&self) -> bool {
-        match &self.infection {
+        match &*self.infection.lock().unwrap() {
             None => { false }
             Some(i) => {
                 !i.recovered()
@@ -131,29 +131,25 @@ impl Person {
     }
 
     pub fn recovered(&self) -> bool {
-        match &self.infection {
+        match &*self.infection.lock().unwrap() {
             None => { false }
             Some(i) => {
-                if i.recovered() && !*self.recovered_status.read().unwrap(){
-                    *self.recovered_status.write().unwrap() = true
-
-                }
-                *self.recovered_status.read().unwrap()
+                i.recovered()
             }
         }
     }
 
     /// Removes the immunity from someone
     pub fn remove_immunity(&mut self) {
-        if self.recovered() && self.infection.is_some(){
-            self.infection = None;
+        if self.recovered() && self.infection.lock().unwrap().is_some(){
+            *self.infection.lock().unwrap() = None;
         }
     }
 
     pub fn infect(&mut self, pathogen: &Arc<Pathogen>) -> bool {
-        if self.infection.is_none() {
-            self.infection = Some(Infection::new(pathogen.clone()));
-            self.condition = Sick;
+        if self.infection.lock().unwrap().is_none() {
+            *self.infection.lock().unwrap() = Some(Infection::new(pathogen.clone()));
+            *self.condition.lock().unwrap() = Sick;
             true
         } else {
             false
@@ -163,7 +159,7 @@ impl Person {
 
     pub fn interact_with<'a>(&self, other: &'a mut Person) -> &'a Person {
         if self.infected() {
-            if let Some(ref infection) = self.infection {
+            if let Some(ref infection) = *self.infection.lock().unwrap() {
                 if infection.active_case() {
                     if Pathogen::roll(*infection.get_pathogen().catch_chance()) {
                         let pathogen = Arc::new(infection.get_pathogen().mutate());
@@ -187,16 +183,28 @@ impl PartialEq for Person {
 
 impl Update for Person {
     fn update_self(&mut self, delta_time: usize) {
+        match &mut *self.infection.lock().unwrap() {
+            None => { },
+            Some(i) => {
+                i.update(delta_time);
+            },
+        }
+
+        if self.recovered() && !*self.recovered_status.read().unwrap() {
+            *self.recovered_status.write().unwrap() = true;
+            let guard = *self.infection.lock();
+            match guard {
+                None => {},
+                Some(i) => {
+                    i.get_pathogen().perform_recovery(self);
+                },
+            }
+        }
 
     }
 
     fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        match &mut self.infection {
-            None => { vec![] },
-            Some(i) => {
-                vec![i]
-            },
-        }
+        vec![]
     }
 }
 
@@ -382,7 +390,7 @@ mod test {
         let mut person_b = Person::new(1, Age::new(17, 0, 0), Male, 1.00);
         let mut p = Virus.create_pathogen("Test", 100);
         p.acquire_symptom(
-            &Undying.get_symptom()
+            &Undying.get_symptom(), None
         );
         let pathogen = Arc::new(p);
 
