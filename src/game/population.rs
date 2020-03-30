@@ -1,17 +1,22 @@
+use std::rc::Rc;
+
 use crate::game::pathogen::infection::Infection;
+use crate::game::pathogen::Pathogen;
+use crate::game::population::Condition::{Normal, Sick};
 use crate::game::time::{Age, Time};
+use crate::game::Update;
 
 pub enum Condition {
     Normal,
     Sick,
     Hospitalized,
     Critical,
-    Dead
+    Dead,
 }
 
 pub enum Sex {
     Male,
-    Female
+    Female,
 }
 
 trait HealthModifier {
@@ -21,14 +26,11 @@ trait HealthModifier {
 impl HealthModifier for Sex {
     fn get_health_modification_factor(&self) -> f64 {
         match self {
-            Sex::Male => { 0.95 },
-            Sex::Female => { 1.0 },
+            Sex::Male => { 0.95 }
+            Sex::Female => { 1.0 }
         }
     }
 }
-
-
-
 
 
 ///
@@ -41,26 +43,23 @@ pub struct Person {
     health_points: u32,
     condition: Condition,
     modifiers: Vec<Box<dyn HealthModifier>>,
-    infection: Option<Infection>
+    infection: Option<Infection>,
 }
 
 
-
 impl Person {
-
     fn new(age: Age,
            sex: Sex,
-           pre_existing_condition: f64,
-           health_points: u32,
-           condition: Condition) -> Self {
+           pre_existing_condition: f64) -> Self {
+        let health = Self::max_health(usize::from(age.time_unit().as_years()) as u8, &sex, pre_existing_condition);
         Person {
             age,
             sex,
             pre_existing_condition,
-            health_points,
-            condition,
+            health_points: health,
+            condition: Normal,
             modifiers: Vec::new(),
-            infection: None
+            infection: None,
         }
     }
 
@@ -69,15 +68,15 @@ impl Person {
         ((match age {
             0..=3 => {
                 30.0
-            },
+            }
             4..=9 => {
                 70.0
-            },
+            }
             10..=19 => {
                 100.0
             }
             age => {
-                (10.0 * (-(age as i16) as f64 + 120.0).sqrt())
+                10.0 * (-(age as i16) as f64 + 120.0).sqrt()
             }
         }) * sex.get_health_modification_factor() * pre_existing_condition) as u32
     }
@@ -101,35 +100,110 @@ impl Person {
 
     pub fn infected(&self) -> bool {
         match &self.infection {
-            None => { false },
+            None => { false }
             Some(i) => {
                 !i.recovered()
-            },
+            }
         }
     }
 
     pub fn recovered(&self) -> bool {
         match &self.infection {
-            None => { false },
+            None => { false }
             Some(i) => {
                 i.recovered()
+            }
+        }
+    }
+
+    pub fn infect(&mut self, pathogen: &Rc<Pathogen>) -> bool {
+        if self.infection.is_none() {
+            self.infection = Some(Infection::new(pathogen.clone()));
+            self.condition = Sick;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn interact_with<'a>(&self, other: &'a mut Person) -> &'a Person {
+        if self.infected() {
+            if let Some(ref infection) = self.infection {
+                if infection.active_case() {
+                    if Pathogen::roll(*infection.get_pathogen().catch_chance()) {
+                        let pathogen = Rc::new(infection.get_pathogen().mutate());
+
+                        other.infect(&pathogen);
+                    }
+                }
+            }
+
+        }
+        other
+    }
+}
+
+impl Update for Person {
+    fn update_self(&mut self, delta_time: usize) {
+
+    }
+
+    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
+        match &mut self.infection {
+            None => { vec![] },
+            Some(i) => {
+                vec![i]
             },
         }
     }
 }
 
 
-
-pub struct Population {
+pub struct Population<'a> {
     people: Vec<Person>,
-    growth_rate: f64
+    infected: Vec<&'a Person>,
+    growth_rate: f64,
 }
 
-impl Population {
+impl<'a> Population<'a> {
+    pub fn new(growth_rate: f64, population: usize, population_distribution: fn(usize) -> f64) -> Self {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashSet;
+    use std::rc::Rc;
+
+    use crate::game::graph::Graph;
+    use crate::game::pathogen::Pathogen;
+    use crate::game::pathogen::types::{PathogenType, Virus};
+    use crate::game::population::Person;
+    use crate::game::population::Sex::Male;
+    use crate::game::time::Age;
+    use crate::game::Update;
+
+    #[test]
+    fn community_transfer() {
+        let mut person_a = Person::new(Age::new(17, 0, 0), Male, 1.00);
+        let mut person_b = Person::new(Age::new(17, 0, 0), Male, 1.00);
+
+        let pathogen = Rc::new(Virus.create_pathogen("Testogen", 100));
 
 
+        person_a.infect(&pathogen);
+        if !person_a.infected() {
+            panic!("Person A wasn't infected")
+        }
 
-    pub fn new(growth_rate: f64, population: usize, population_distribution: fn(usize) -> f64) {
+        while !person_a.recovered() && !person_b.infected() {
+            person_a.update(20);
+            person_a.interact_with(&mut person_b);
+        }
 
+        if !person_b.infected() {
+            panic!("Person B wasn't infected before Person A recovered")
+        }
     }
 }

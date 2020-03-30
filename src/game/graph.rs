@@ -1,13 +1,34 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
+use std::fmt::{Debug, Error, Formatter, Result};
 use std::hash::Hash;
-use std::ops::{Index, IndexMut, Range};
+use std::ops::{Deref, Index, IndexMut, Range};
 
 use crate::game::graph::GraphError::{EdgeAlreadyExists, IdDoesNotExist, IdExists};
 
 pub struct Node<ID = usize, T = ()> where ID : PartialEq + Copy {
     id: ID,
     value: T
+}
+
+impl<ID, T> Clone for Node<ID, T>
+    where ID : PartialEq + Copy,
+          T : Clone {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            value: self.value.clone()
+        }
+    }
+}
+
+impl <ID, T> Deref for Node<ID, T>
+    where ID : PartialEq + Copy {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
 }
 
 impl <ID : PartialEq + Copy, T> Node<ID, T> {
@@ -47,20 +68,20 @@ pub struct Graph<ID = usize, W = f64, T = ()>
 
 
 #[derive(Debug)]
-enum GraphError<ID> {
+pub enum GraphError<ID> {
     IdExists(ID),
     IdDoesNotExist(ID),
     EdgeAlreadyExists
 }
 
 
-type GraphResult<ID> = Result<(), GraphError<ID>>;
+pub type GraphResult<ID> = std::result::Result<(), GraphError<ID>>;
 
 impl <ID, W, T> Graph<ID, W, T>
     where
         ID : Eq + Hash + Copy {
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         Graph {
             adjacency: HashMap::new(),
             nodes: HashMap::new(),
@@ -70,7 +91,29 @@ impl <ID, W, T> Graph<ID, W, T>
         }
     }
 
-    fn add_node(&mut self, id: ID, value: T) -> GraphResult<ID> {
+    pub fn get(&self, id: &ID) -> Option<&T> {
+        match self.get_node(id) {
+            None => { None },
+            Some(node) => { Some(&node.value)},
+        }
+    }
+
+    pub fn get_mut(&mut self, id: &ID) -> Option<&mut T> {
+        match self.get_node_mut(id) {
+            None => { None },
+            Some(node) => { Some(&mut node.value)},
+        }
+    }
+
+    pub fn get_node(&self, id: &ID) -> Option<&Node<ID, T>> {
+        self.nodes.get(id)
+    }
+
+    pub fn get_node_mut(&mut self, id: &ID) -> Option<&mut Node<ID, T>> {
+        self.nodes.get_mut(id)
+    }
+
+    pub fn add_node(&mut self, id: ID, value: T) -> GraphResult<ID> {
         let n = Node::new(id.clone(), value);
         if self.nodes.contains_key(n.get_id()) {
             return Err(IdExists(id));
@@ -81,11 +124,11 @@ impl <ID, W, T> Graph<ID, W, T>
         Ok(())
     }
 
-    fn contains_node(&self, id: ID) -> bool {
+    pub fn contains_node(&self, id: ID) -> bool {
         self.nodes.contains_key(&id)
     }
 
-    fn add_edge(&mut self, u: ID, v: ID, weight: W) -> GraphResult<ID> {
+    pub fn add_edge(&mut self, u: ID, v: ID, weight: W) -> GraphResult<ID> {
         if !self.contains_node(u) {
             return Err(IdDoesNotExist(u));
         } else if  !self.contains_node(v) {
@@ -95,11 +138,12 @@ impl <ID, W, T> Graph<ID, W, T>
         if map.contains_key(&v) {
             return Err(EdgeAlreadyExists)
         }
+        self.edges.push((u, v, weight));
         map.insert(v, weight);
         Ok(())
     }
 
-    fn contains_edge(&self, u: ID, v: ID) -> bool {
+    pub fn contains_edge(&self, u: ID, v: ID) -> bool {
         if !self.contains_node(u) || !self.contains_node(v) {
             return false;
         }
@@ -113,7 +157,7 @@ impl <ID, W, T> Graph<ID, W, T>
         }
     }
 
-    fn get_weight(&self, u: ID, v: ID) -> Option<&W> {
+    pub fn get_weight(&self, u: ID, v: ID) -> Option<&W> {
         if !self.contains_edge(u, v) {
             None
         } else {
@@ -121,7 +165,7 @@ impl <ID, W, T> Graph<ID, W, T>
         }
     }
 
-    fn get_adjacent(&self, node: ID) -> Vec<&ID> {
+    pub fn get_adjacent(&self, node: ID) -> Vec<&ID> {
         match self.adjacency.get(&node) {
             None => {
                 Vec::new()
@@ -130,6 +174,14 @@ impl <ID, W, T> Graph<ID, W, T>
                 map.keys().collect()
             },
         }
+    }
+
+    pub fn nodes(&self) -> impl Iterator<Item=&Node<ID, T>> {
+        self.nodes.values()
+    }
+
+    pub fn edges(&self) -> impl Iterator<Item=&(ID, ID, W)> {
+        self.edges.iter()
     }
 
 }
@@ -146,6 +198,23 @@ impl <ID, W, T> Graph<ID, W, T>
             }
         }
         Ok(())
+    }
+}
+
+impl <ID, W, T> Clone for Graph<ID, W, T>
+    where
+        ID : Eq + Hash + Copy,
+        W : Clone,
+        T : Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            adjacency: self.adjacency.clone(),
+            nodes: self.nodes.clone(),
+            edges: self.edges.clone(),
+            num_nodes: self.num_nodes,
+            num_edges: self.num_edges
+        }
     }
 }
 
@@ -186,6 +255,15 @@ impl <ID, W, T> Index<(ID, ID)> for Graph<ID, W, T>
 
     fn index(&self, index: (ID, ID)) -> &Self::Output {
         &self.adjacency[&index.0][&index.1]
+    }
+}
+
+impl <ID, W, T> Debug for Graph<ID, W, T>
+    where
+        ID : Eq + Hash + Copy
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Graph(size={})", self.num_nodes)
     }
 }
 
@@ -252,5 +330,19 @@ mod test {
         v.sort();
 
         assert_eq!(v, vec![&1, &3, &7]);
+    }
+
+    #[derive(Clone, Copy)]
+    struct Wrapper<T>(T);
+
+    #[test]
+    fn cloned_graphs_independent() {
+        let mut g: Graph<usize, f64, Wrapper<usize>> = Graph::new();
+
+        g.add_nodes(0..10, Wrapper(5)).unwrap();
+        g.add_edge(3, 5,10.0).unwrap();
+        let mut g_prime = g.clone();
+        g.add_edge(5, 7, 11.0).unwrap();
+        assert_eq!(g_prime.get_weight(3, 5), g.get_weight(3, 5));
     }
 }

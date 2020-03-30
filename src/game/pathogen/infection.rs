@@ -20,24 +20,33 @@ impl Infection {
         Infection {
             pathogen,
             infection_age: Age::new(0, 0 ,0),
-            pathogen_count: 5,
+            pathogen_count: 1,
             recovered: false
         }
     }
 
-    pub fn get_pathogen(&self) -> &Pathogen {
+    pub fn get_pathogen(&self) -> &Rc<Pathogen> {
         &self.pathogen
     }
+
+    pub fn active_case(&self) -> bool {
+        !self.recovered && self.pathogen_count > self.pathogen.min_count_for_symptoms
+    }
+
 
     pub fn recovered(&self) -> bool {
         self.recovered
     }
 
     pub fn attempt_recover(&mut self) {
-        let ceiling = self.pathogen.recovery_chance.recover(self.infection_age.time_unit().clone());
+        let ceiling = self.pathogen.recover_chance(self.infection_age.time_unit().clone());
         let roll: f64 = rand::random();
 
         self.recovered = roll < ceiling;
+    }
+
+    pub fn infection_age(&self) -> &Age {
+        &self.infection_age
     }
 }
 
@@ -47,7 +56,7 @@ impl Update for Infection {
         self.infection_age += time_passed;
         if self.pathogen_count < self.pathogen.min_count_for_symptoms {
             if Pathogen::roll(self.pathogen.internal_spread_rate) {
-                self.pathogen_count += (rand::thread_rng().gen_range::<f64, f64, f64>(0.33, 0.66) * self.pathogen_count as f64) as usize;
+                self.pathogen_count += (rand::thread_rng().gen_range::<f64, f64, f64>(0.2, 1.02) * self.pathogen_count as f64) as usize;
             }
         } else {
             self.attempt_recover();
@@ -61,37 +70,39 @@ impl Update for Infection {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
     use std::rc::Rc;
 
-    use crate::game::{min_wait, Update};
-    use crate::game::pathogen::{DefaultRecoveryChance, Pathogen};
+    use crate::game::graph::Graph;
     use crate::game::pathogen::infection::Infection;
-    use crate::game::time::Time;
-    use crate::game::time::TimeUnit::Minutes;
+    use crate::game::pathogen::Pathogen;
+    use crate::game::Update;
 
-    const ATTEMPTS: usize = 100;
-
+    /// Checks if an infection will eventually become mature
     #[test]
-    fn infection_recovery_test() {
-        let pathogen = Rc::new(Pathogen::new("Testogen", 1000, DefaultRecoveryChance));
+    fn infection_starts() {
+        let pathogen = Rc::new(Pathogen::new("Testogen".to_string(),
+                                             1000,
+                                             0.0005,
+                                             0.03,
+                                             1.0,
+                                             Graph::new(),
+                                             HashSet::new()
+        ));
 
-        let mut sum_time = Minutes(0);
+        let mut infection = Infection::new(pathogen.clone());
+        let mut time = std::time::SystemTime::now();
 
-        for attempt in 0..ATTEMPTS {
-            let mut infection = Infection::new(pathogen.clone());
-
-            while !&infection.recovered {
-                infection.update(20);
+        while infection.pathogen_count < pathogen.min_count_for_symptoms {
+            if let Ok(elapsed) = time.elapsed() {
+                if elapsed.as_secs() > 30 {
+                    panic!("Infections can't progress")
+                }
+            } else {
+                panic!()
             }
-
-            let recover_time = infection.infection_age.time_unit();
-            println!("Attempt {} Recover Time: {} days", attempt, recover_time.format("{:d}"));
-            sum_time = sum_time + recover_time;
-
+            infection.update(20);
         }
-        let avg_time = sum_time / ATTEMPTS;
-        assert!(avg_time.as_days() >= 3, "Aiming for default recover time to be 3 days, instead {} ({} minutes)", avg_time.format("{:d}"), avg_time);
-        println!("Average recovery time = {}", avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m"))
+        print!("")
     }
 }
-

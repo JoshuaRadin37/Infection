@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Error, Formatter, Result};
-use std::ops::{Add, AddAssign, Div, Mul, Rem};
+use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
 
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
 
@@ -96,8 +96,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_minutes();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -107,8 +106,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_hours();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -118,8 +116,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_days();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -129,8 +126,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_weeks();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -140,8 +136,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_months();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -151,8 +146,7 @@ pub mod fmt {
                     &output,
                     |captures: &Captures | -> String {
                         let numerator = self.reference.as_years();
-                        let string = Self::formatted_time_string(captures, numerator);
-                        string
+                        Self::formatted_time_string(captures, numerator)
                     }
                 );
 
@@ -320,7 +314,7 @@ impl Time for TimeUnit {
     }
 
     fn into_years(self) -> TimeUnit {
-        Years(usize::from(((self.into_minutes()) / 60 / 24 / 365)) as YearsType)
+        Years(usize::from((self.into_minutes() / 60 / 24 / 365)) as YearsType)
     }
 
 
@@ -441,6 +435,42 @@ impl Add<TimeUnit> for YearsType {
     }
 }
 
+
+impl Sub<TimeUnit> for FineGrainTimeType {
+    type Output = FineGrainTimeType;
+
+    fn sub(self, rhs: TimeUnit) -> Self::Output {
+        self - (
+            match rhs {
+                Minutes(t) |
+                Hours(t) |
+                Days(t) |
+                Weeks(t) |
+                Months(t) => {
+                    t
+                },
+                Years(t) => {
+                    t as FineGrainTimeType
+                }
+            }
+        )
+    }
+}
+
+
+
+impl Sub<TimeUnit> for YearsType {
+    type Output = YearsType;
+
+    fn sub(self, rhs: TimeUnit) -> Self::Output {
+        if let Years(yrs) = rhs {
+            self - yrs
+        } else {
+            self - rhs.into_years()
+        }
+    }
+}
+
 impl Add<TimeUnit> for TimeUnit {
     type Output = Self;
 
@@ -465,6 +495,41 @@ impl Add<TimeUnit> for TimeUnit {
         }
     }
 }
+
+impl Sub<TimeUnit> for TimeUnit {
+    type Output = Self;
+
+    ///
+    /// Adds two TimeUnits together, results in a TimeUnit with the greatest Resolution
+    fn sub(self, rhs: TimeUnit) -> Self::Output {
+        match self.cmp_resolution(&rhs) {
+            Ordering::Less => {
+                // Communitive if using resolution fixing
+                rhs - self
+            },
+            Ordering::Greater | Ordering::Equal => {
+                match self {
+                    Minutes(min) => { Minutes(min - rhs.into_minutes()) },
+                    Hours(hrs) => { Hours(hrs - rhs.into_hours()) },
+                    Days(days) => { Days(days - rhs.into_days()) },
+                    Weeks(wks) => { Weeks(wks - rhs.into_weeks()) },
+                    Months(months) => { Months(months - rhs.into_months()) },
+                    Years(years) => { Years(years - rhs)},
+                }
+            },
+        }
+    }
+}
+
+impl Sub<&TimeUnit> for TimeUnit {
+    type Output = Self;
+
+    fn sub(self, rhs: &TimeUnit) -> Self::Output {
+        self - rhs.clone()
+    }
+}
+
+
 
 impl Add<&TimeUnit> for TimeUnit {
     type Output = Self;

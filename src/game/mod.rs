@@ -9,6 +9,8 @@ pub mod graph;
 pub mod population;
 pub mod time;
 pub mod pathogen;
+pub mod playable;
+pub mod doctors;
 
 
 pub static LAND_TRAVEL_TIME: f64 = 45.0;
