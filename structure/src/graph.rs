@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter, Result};
 use std::hash::Hash;
 use std::ops::{Deref, Index, IndexMut, Range};
+use crate::graph::GraphError::{IdExists, IdDoesNotExist, EdgeAlreadyExists};
 
-use crate::game::graph::GraphError::{EdgeAlreadyExists, IdDoesNotExist, IdExists};
 
 pub struct Node<ID = usize, T = ()> where ID : PartialEq + Copy {
     id: ID,
@@ -269,7 +269,7 @@ impl <ID, W, T> Debug for Graph<ID, W, T>
 
 #[cfg(test)]
 mod test {
-    use crate::game::graph::{Graph, Node};
+    use crate::graph::{Node, Graph};
 
     #[test]
     fn is_key_works() {

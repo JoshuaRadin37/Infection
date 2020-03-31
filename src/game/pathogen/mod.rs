@@ -7,11 +7,12 @@ use std::sync::Arc;
 
 use rand::Rng;
 
-use crate::game::graph::Graph;
+use structure::graph::Graph;
+use structure::time::{Time, TimeUnit};
+
 use crate::game::pathogen::symptoms::{Symptom, SymptomMap};
 use crate::game::population::Person;
 use crate::game::roll;
-use crate::game::time::{Time, TimeUnit};
 
 pub mod infection;
 pub mod symptoms;
@@ -245,12 +246,12 @@ impl Pathogen {
 mod test {
     use std::sync::{Arc, Mutex};
 
+    use crate::game::Age;
     use crate::game::pathogen::Pathogen;
     use crate::game::pathogen::symptoms::Symptom;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::Person;
     use crate::game::population::Sex::Male;
-    use crate::game::time::Age;
 
     #[test]
     fn test_add_and_remove_on_recover_function() {

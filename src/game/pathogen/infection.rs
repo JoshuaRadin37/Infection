@@ -4,9 +4,8 @@ use std::sync::Arc;
 use rand::distributions::Distribution;
 use rand::Rng;
 
-use crate::game::{roll, tick_to_game_time_conversion, Update};
+use crate::game::{Age, roll, tick_to_game_time_conversion, Update};
 use crate::game::pathogen::Pathogen;
-use crate::game::time::{Age, TimeUnit};
 
 #[derive(Clone)]
 pub struct Infection {
@@ -75,7 +74,8 @@ mod test {
     use std::rc::Rc;
     use std::sync::Arc;
 
-    use crate::game::graph::Graph;
+    use structure::graph::Graph;
+
     use crate::game::pathogen::infection::Infection;
     use crate::game::pathogen::Pathogen;
     use crate::game::Update;

@@ -1,7 +1,8 @@
-use crate::game::graph::Graph;
 use std::cmp::Ordering;
-use crate::game::{SEA_TRAVEL_TIME, AIR_TRAVEL_TIME, LAND_TRAVEL_TIME};
 
+use structure::graph::Graph;
+
+use crate::game::{AIR_TRAVEL_TIME, LAND_TRAVEL_TIME, SEA_TRAVEL_TIME};
 
 pub struct Chunk {
     population: usize,

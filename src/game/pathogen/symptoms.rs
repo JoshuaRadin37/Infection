@@ -4,7 +4,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::usize;
 
-use crate::game::graph::{Graph, GraphResult, Node};
+use structure::graph::{Graph, GraphResult};
+
 use crate::game::population::Person;
 
 pub struct Symptom {
@@ -337,13 +338,12 @@ mod test {
 
     use rand::thread_rng;
 
+    use crate::game::{Age, Update};
     use crate::game::pathogen::symptoms::base::cheat::NeverImmune;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::Person;
     use crate::game::population::Sex::Male;
-    use crate::game::time::Age;
-    use crate::game::Update;
 
     #[test]
     fn never_immune_removes_immunity() {
@@ -380,7 +380,7 @@ mod test {
         );
 
         thread::sleep(Duration::from_secs(1));
-        tx.send(()).unwrap();
+        tx.send(());
         if let Ok(Ok(not_recovered)) = handle.join() {
             assert!(not_recovered, "The person should have never recovered")
         } else {

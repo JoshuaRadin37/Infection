@@ -10,6 +10,7 @@ mod community {
     use infection::game::Update;
 
     #[test]
+    #[ignore]
     fn community_transfer() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 120));
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
@@ -49,6 +50,7 @@ mod community {
 
 
     #[test]
+    #[ignore]
     fn community_recover() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 100, UniformDistribution::new(0, 120));
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
@@ -82,6 +84,7 @@ mod community {
     }
 
     #[test]
+    #[ignore]
     fn full_single_community_run() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
         let mut pathogen = {

@@ -3,11 +3,8 @@ use std::fmt::{Display, Error, Formatter, Result};
 use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
 
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
-
-use crate::game;
-use crate::game::time::fmt::TimeFormat;
-use crate::game::time::TimeUnit::*;
-use crate::game::Update;
+use crate::time::TimeUnit::{Minutes, Hours, Days, Years, Months, Weeks};
+use crate::time::fmt::TimeFormat;
 
 pub type YearsType = u16;
 pub type FineGrainTimeType = usize;
@@ -19,8 +16,9 @@ pub mod fmt {
 
     use regex::{Captures, Match, Regex};
 
-    use crate::game::time::{Time, TimeUnit};
-    use crate::game::time::TimeUnit::*;
+
+    use crate::time::{Time, TimeUnit};
+    use crate::time::TimeUnit::{Days, Hours, Minutes, Months, Weeks, Years};
 
     pub struct TimeFormat<'a, 'b> {
         reference: &'a TimeUnit,
@@ -617,81 +615,11 @@ impl Display for TimeUnit {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Age(TimeUnit); // in minutes
-
-impl Age {
-
-    pub fn new(years: YearsType, months: FineGrainTimeType, days: FineGrainTimeType) -> Age {
-        let years = Years(years).into_minutes();
-        let months = Months(months).into_minutes();
-        let days = Days(days).into_minutes();
-
-        Age(years + months + days)
-    }
-
-    pub fn time_unit(&self) -> &TimeUnit {
-        &self.0
-    }
-
-    pub fn time_unit_mut(&mut self) -> &mut TimeUnit {
-        &mut self.0
-    }
-}
-
-impl From<TimeUnit> for Age {
-    fn from(t: TimeUnit) -> Self {
-        Age(t.into_minutes())
-    }
-}
-
-impl AddAssign<TimeUnit> for Age {
-    fn add_assign(&mut self, rhs: TimeUnit) {
-        self.0 = &self.0 + rhs;
-    }
-}
-
-impl AddAssign<&TimeUnit> for Age {
-    fn add_assign(&mut self, rhs: &TimeUnit) {
-        self.0 = &self.0 + rhs;
-    }
-}
-
-impl AddAssign<usize> for Age {
-    fn add_assign(&mut self, rhs: usize) {
-        self.0 = &self.0 + rhs;
-    }
-}
-
-impl PartialEq<TimeUnit> for Age {
-    fn eq(&self, other: &TimeUnit) -> bool {
-        self.time_unit().eq(other)
-    }
-}
-
-impl PartialOrd<TimeUnit> for Age {
-    fn partial_cmp(&self, other: &TimeUnit) -> Option<Ordering> {
-        self.time_unit().partial_cmp(other)
-    }
-}
-
-impl Update for Age {
-    fn update_self(&mut self, delta_time: usize) {
-        *self += game::tick_to_game_time_conversion(delta_time);
-        //self.add_assign();
-    }
-
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        Vec::new()
-    }
-}
 
 
 #[cfg(test)]
 mod test {
-    use crate::game::time::{Age, Time};
-    use crate::game::time::TimeUnit::*;
-    use crate::game::Update;
+    use super::*;
 
     #[test]
     fn time_conversion() {
@@ -765,13 +693,7 @@ mod test {
         assert!(lhs < rhs);
     }
 
-    #[test]
-    fn age_modification() {
-        let mut age: Age = (Years(21) + Days(21)).into();
-        assert_eq!(age, Years(21) + Days(21));
-        age += Minutes(1);
-        assert_eq!(age, Years(21) + Days(21) + Minutes(1));
-    }
+
 
     #[test]
     fn time_remain() {
@@ -782,13 +704,6 @@ mod test {
         assert_eq!(a % b.clone(), Months(3));
     }
 
-    #[test]
-    fn update_age() {
-        let mut age: Age = (Years(21) + Days(21)).into();
-        assert_eq!(age, Years(21) + Days(21));
-        age.update(60);
-        assert!(age > Years(21) + Days(21), "{:?} not greater than {:?}, but should be", age,  Years(21) + Days(21));
-    }
 
     #[test]
     fn time_format() {

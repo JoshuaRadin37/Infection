@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::game::graph::Graph;
+use structure::graph::Graph;
+
 use crate::game::pathogen::Pathogen;
 use crate::game::pathogen::symptoms::{Symp, Symptom, SymptomMap, SymptomMapBuilder};
 use crate::game::pathogen::symptoms::base::{Cough, RunnyNose};

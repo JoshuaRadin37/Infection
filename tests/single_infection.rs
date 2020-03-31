@@ -2,13 +2,13 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use infection::game::graph::Graph;
 use infection::game::pathogen::infection::Infection;
 use infection::game::pathogen::Pathogen;
 use infection::game::pathogen::symptoms::{Symptom, SymptomMap};
-use infection::game::time::Time;
-use infection::game::time::TimeUnit::Minutes;
 use infection::game::Update;
+use structure::graph::Graph;
+use structure::time::Time;
+use structure::time::TimeUnit::Minutes;
 
 const ATTEMPTS: usize = 100;
 

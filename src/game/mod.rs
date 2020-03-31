@@ -1,15 +1,17 @@
+use std::cmp::Ordering;
 use std::ops::AddAssign;
 use std::thread::sleep;
 use std::time::Duration;
 
 use rand::Rng;
 
-use crate::game::time::TimeUnit;
+use structure::time::{FineGrainTimeType, Time, TimeUnit, YearsType};
+use structure::time::TimeUnit::{Days, Months, Years};
+
+use crate::game;
 
 pub mod board;
-pub mod graph;
 pub mod population;
-pub mod time;
 pub mod pathogen;
 pub mod playable;
 pub mod doctors;
@@ -56,14 +58,89 @@ pub fn tick_to_game_time_conversion(delta_time: usize) -> TimeUnit {
 }
 
 pub fn roll(chance: f64) -> bool {
+    if chance < 0.0 || chance > 1.0 {
+        panic!("Invalid chance: {}", chance);
+    }
     rand::thread_rng().gen_bool(chance)
 }
+
+#[derive(Debug, Clone)]
+pub struct Age(TimeUnit); // in minutes
+
+impl Age {
+
+    pub fn new(years: YearsType, months: FineGrainTimeType, days: FineGrainTimeType) -> Age {
+        let years = Years(years).into_minutes();
+        let months = Months(months).into_minutes();
+        let days = Days(days).into_minutes();
+
+        Age(years + months + days)
+    }
+
+    pub fn time_unit(&self) -> &TimeUnit {
+        &self.0
+    }
+
+    pub fn time_unit_mut(&mut self) -> &mut TimeUnit {
+        &mut self.0
+    }
+}
+
+impl From<TimeUnit> for Age {
+    fn from(t: TimeUnit) -> Self {
+        Age(t.into_minutes())
+    }
+}
+
+impl AddAssign<TimeUnit> for Age {
+    fn add_assign(&mut self, rhs: TimeUnit) {
+        self.0 = &self.0 + rhs;
+    }
+}
+
+impl AddAssign<&TimeUnit> for Age {
+    fn add_assign(&mut self, rhs: &TimeUnit) {
+        self.0 = &self.0 + rhs;
+    }
+}
+
+impl AddAssign<usize> for Age {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 = &self.0 + rhs;
+    }
+}
+
+impl PartialEq<TimeUnit> for Age {
+    fn eq(&self, other: &TimeUnit) -> bool {
+        self.time_unit().eq(other)
+    }
+}
+
+impl PartialOrd<TimeUnit> for Age {
+    fn partial_cmp(&self, other: &TimeUnit) -> Option<Ordering> {
+        self.time_unit().partial_cmp(other)
+    }
+}
+
+impl Update for Age {
+    fn update_self(&mut self, delta_time: usize) {
+        *self += game::tick_to_game_time_conversion(delta_time);
+        //self.add_assign();
+    }
+
+    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
+        Vec::new()
+    }
+}
+
 
 #[cfg(test)]
 mod test {
     use std::borrow::BorrowMut;
 
-    use crate::game::Update;
+    use structure::time::TimeUnit::{Days, Minutes, Years};
+
+    use crate::game::{Age, Update};
 
     struct UpdateObject(i32, Box<Option<(UpdateObject, UpdateObject)>>);
 
@@ -95,6 +172,14 @@ mod test {
             }
             output
         }
+    }
+
+    #[test]
+    fn age_modification() {
+        let mut age: Age = (Years(21) + Days(21)).into();
+        assert_eq!(age, Years(21) + Days(21));
+        age += Minutes(1);
+        assert_eq!(age, Years(21) + Days(21) + Minutes(1));
     }
 
     #[test]

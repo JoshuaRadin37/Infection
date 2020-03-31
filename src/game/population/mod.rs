@@ -11,13 +11,14 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use rand::{random, Rng};
 
-use crate::game::{roll, Update};
+use structure::time::Time;
+
+use crate::game::{Age, roll, Update};
 use crate::game::pathogen::infection::Infection;
 use crate::game::pathogen::Pathogen;
 use crate::game::pathogen::symptoms::Symp;
 use crate::game::population::Condition::{Normal, Sick};
 use crate::game::population::Sex::{Female, Male};
-use crate::game::time::{Age, Time};
 
 pub mod person_behavior;
 
@@ -146,6 +147,7 @@ impl Person {
     pub fn remove_immunity(&mut self) {
         if self.recovered() && self.infection.lock().unwrap().is_some(){
             *self.infection.lock().unwrap() = None;
+            *self.recovered_status.write().unwrap() = false;
         }
     }
 
@@ -453,15 +455,13 @@ mod test {
     use std::sync::{Arc, Mutex};
     use std::thread;
 
-    use crate::game::graph::Graph;
+    use crate::game::{Age, Update};
     use crate::game::pathogen::Pathogen;
     use crate::game::pathogen::symptoms::base::cheat::Undying;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution};
     use crate::game::population::Sex::Male;
-    use crate::game::time::Age;
-    use crate::game::Update;
 
     #[test]
     fn can_transfer() {

@@ -232,6 +232,7 @@ dependencies = [
  "num-traits",
  "rand",
  "regex",
+ "structure",
 ]
 
 [[package]]
@@ -540,6 +541,14 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "structure"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "regex",
 ]
 
 [[package]]
