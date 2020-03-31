@@ -411,6 +411,7 @@ impl Update for Population {
             }
         }
 
+        remove.sort_by(|a, b| a.cmp(b).reverse());
         for r in remove {
             let recovered = self.infected.remove(r);
             // println!("Removed recovered {:?}", recovered);
@@ -454,7 +455,7 @@ mod test {
 
     use crate::game::graph::Graph;
     use crate::game::pathogen::Pathogen;
-    use crate::game::pathogen::symptoms::base::Undying;
+    use crate::game::pathogen::symptoms::base::cheat::Undying;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution};

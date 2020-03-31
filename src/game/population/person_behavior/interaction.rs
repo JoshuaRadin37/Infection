@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use rand::{Rng, thread_rng};
 use rand::seq::IteratorRandom;
 
+use crate::game::pathogen::infection::Infection;
 use crate::game::population::person_behavior::Controller;
 use crate::game::population::Population;
 use crate::game::roll;
@@ -22,7 +23,7 @@ impl InteractionController {
 
 }
 
-const INTERACTION_CHANCE: f64 = 0.5;
+const INTERACTION_CHANCE: f64 = 1.0;
 
 impl Controller for InteractionController {
     fn run(&mut self) {
@@ -35,9 +36,22 @@ impl Controller for InteractionController {
         for person in population.get_infected() {
             let infected = &*person.read().expect("Should be able to get a read");
 
+            let severity = {
+                let guard = infected.infection.lock().unwrap();
+                match &*guard {
+                    None => { panic!("There should be an infection") },
+
+                    Some(ref i) => {
+                        *i.get_pathogen().severity()
+                    },
+                }
+            };
+            let severity_effect = 1.0 - severity;
             let count = thread_rng().gen_range(0, 7);
+            /*
             for _ in 0..count {
-                if roll(INTERACTION_CHANCE) {
+
+                if roll(INTERACTION_CHANCE * severity_effect) {
                     let other = loop {
                         let other = population.get_everyone().iter().choose(&mut thread_rng());
 
@@ -58,6 +72,7 @@ impl Controller for InteractionController {
                     }
                 }
             }
+            */
         }
 
 

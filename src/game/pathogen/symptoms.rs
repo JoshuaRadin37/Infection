@@ -188,7 +188,7 @@ impl <'a> SymptomMapBuilderEntry<'a> {
         self.node
     }
 
-    pub fn next_symptom(&mut self, symptom: Symptom, mutation_chance: f64) -> SymptomMapBuilderEntry {
+    pub fn next_symptom(&mut self, symptom: Symptom, mutation_chance: f64) -> SymptomMapBuilderEntry{
         let output = self.map_builder.add(symptom);
         let id1 = self.node;
         let id2 = output.node;
@@ -215,56 +215,79 @@ pub mod base {
     use crate::game::pathogen::symptoms::{Symp, Symptom};
     use crate::game::population::Person;
 
-    /// Person can never recover
-    pub struct Undying;
-    impl Symp for Undying {
-        fn get_symptom(&self) -> Symptom {
-            Symptom::new(
-                "Immunity Immunity".to_string(),
-                "The immune system can never beat the pathogen, and the person will never recover".to_string(),
-                100.0,
-                1.0001,
-                1.0,
-                1.0,
-                Some(0.0),
-                None,
-                None
-            )
+    /// Cheat symptoms, way too powerful or weak for standard viruses
+    pub mod cheat {
+        use super::*;
+
+        /// Person can never recover
+        pub struct Undying;
+
+        impl Symp for Undying {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    "Immunity Immunity".to_string(),
+                    "The immune system can never beat the pathogen, and the person will never recover".to_string(),
+                    100.0,
+                    1.0001,
+                    1.0,
+                    1.0,
+                    Some(0.0),
+                    None,
+                    None
+                )
+            }
         }
-    }
 
-    pub fn create_recovery_function<'a, F>(function: F) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
-        where F : Fn(&'a mut Person) + Send + Sync + 'a {
-        let output: Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a> = Arc::new(function);
-        output
-    }
+        pub fn create_recovery_function<'a, F>(function: F) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
+            where F: Fn(&'a mut Person) + Send + Sync + 'a {
+            let output: Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a> = Arc::new(function);
+            output
+        }
 
-    // Person are never immune to the Pathogen by forcing the Person to remove their infection
-    pub struct NeverImmune { pub activations: Option<Arc<Mutex<usize>>> }
-    impl Symp for NeverImmune {
-        fn get_symptom(&self) -> Symptom {
+        // Person are never immune to the Pathogen by forcing the Person to remove their infection
+        pub struct NeverImmune;
 
-            let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
+        impl Symp for NeverImmune {
+            fn get_symptom(&self) -> Symptom {
+                let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
                     |person| {
                         person.remove_immunity()
                     }
-            );
+                );
 
 
-            Symptom::new(
-                "Viral Amnesia".to_string(),
-                "What Virus? ".to_string(),
-                1.0,
-                1.0,
-                1.0,
-                100.0,
-                None,
-                None,
-                Some(
-                    &function
+                Symptom::new(
+                    "Viral Amnesia".to_string(),
+                    "What Virus? ".to_string(),
+                    1.0,
+                    1.0,
+                    1.0,
+                    100.0,
+                    None,
+                    None,
+                    Some(
+                        &function
+                    )
                 )
-            )
+            }
+        }
 
+        pub struct NoSpread;
+
+        impl Symp for NoSpread {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    "Catch me if you can!".to_string(),
+                    "Which is pretty unlikely. -100% infection rate".to_string(),
+                    0.0,
+                    1.0,
+                    1.0,
+                    100.0,
+                    None,
+                    None,
+                    None
+                )
+            }
         }
     }
 
@@ -285,14 +308,14 @@ pub mod base {
         }
     }
 
-    pub struct Cough;
+    pub struct Cough(pub u8);
     impl Symp for Cough {
         fn get_symptom(&self) -> Symptom {
             Symptom::new(
-                "Cough".to_string(),
+                format!("Cough {}", self.0),
                 "A upper respiratory cough".to_string(),
-                900.0,
-                1.1,
+                9.5,
+                1.5,
                 1.0,
                 1.0,
                 None,
@@ -314,7 +337,7 @@ mod test {
 
     use rand::thread_rng;
 
-    use crate::game::pathogen::symptoms::base::NeverImmune;
+    use crate::game::pathogen::symptoms::base::cheat::NeverImmune;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::Person;
@@ -326,7 +349,7 @@ mod test {
     fn never_immune_removes_immunity() {
         let mut p = Virus.create_pathogen("Test", 0);
         let activations = Arc::new(Mutex::new(0));
-        p.acquire_symptom(&NeverImmune { activations: Some(activations.clone()) }.get_symptom(), None);
+        p.acquire_symptom(&NeverImmune.get_symptom(), None);
 
         let mut person  = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
         let arc = Arc::new(p);

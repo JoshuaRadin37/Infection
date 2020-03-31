@@ -72,7 +72,9 @@ impl PathogenType for Virus {
 
         let mut builder_entry = builder.add(RunnyNose.get_symptom());
         set.insert(builder_entry.node());
-        builder_entry.next_symptom(Cough.get_symptom(), 0.02);
+        builder_entry.next_symptom(Cough(1).get_symptom(), 0.5)
+            .next_symptom(Cough(2).get_symptom(), 0.02)
+            .next_symptom(Cough(3).get_symptom(), 0.01);
 
         (builder.get_map(), set)
     }
