@@ -1,14 +1,16 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use rand::distributions::Distribution;
 use rand::Rng;
 
-use crate::game::{tick_to_game_time_conversion, Update};
+use crate::game::{roll, tick_to_game_time_conversion, Update};
 use crate::game::pathogen::Pathogen;
 use crate::game::time::{Age, TimeUnit};
 
+#[derive(Clone)]
 pub struct Infection {
-    pathogen: Rc<Pathogen>, // pathogen
+    pathogen: Arc<Pathogen>, // pathogen
     infection_age: Age, // age of the infection
     pathogen_count: usize,
     recovered: bool // if the person has recovered
@@ -16,16 +18,16 @@ pub struct Infection {
 
 impl Infection {
 
-    pub fn new(pathogen: Rc<Pathogen>) -> Self {
+    pub fn new(pathogen: Arc<Pathogen>) -> Self {
         Infection {
             pathogen,
             infection_age: Age::new(0, 0 ,0),
-            pathogen_count: 1,
+            pathogen_count: 100,
             recovered: false
         }
     }
 
-    pub fn get_pathogen(&self) -> &Rc<Pathogen> {
+    pub fn get_pathogen(&self) -> &Arc<Pathogen> {
         &self.pathogen
     }
 
@@ -40,9 +42,8 @@ impl Infection {
 
     pub fn attempt_recover(&mut self) {
         let ceiling = self.pathogen.recover_chance(self.infection_age.time_unit().clone());
-        let roll: f64 = rand::random();
 
-        self.recovered = roll < ceiling;
+        self.recovered = roll(ceiling)
     }
 
     pub fn infection_age(&self) -> &Age {
@@ -55,7 +56,7 @@ impl Update for Infection {
         let time_passed = tick_to_game_time_conversion(delta_time);
         self.infection_age += time_passed;
         if self.pathogen_count < self.pathogen.min_count_for_symptoms {
-            if Pathogen::roll(self.pathogen.internal_spread_rate) {
+            if roll(self.pathogen.internal_spread_rate) {
                 self.pathogen_count += (rand::thread_rng().gen_range::<f64, f64, f64>(0.2, 1.02) * self.pathogen_count as f64) as usize;
             }
         } else {
@@ -72,6 +73,7 @@ impl Update for Infection {
 mod test {
     use std::collections::HashSet;
     use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::game::graph::Graph;
     use crate::game::pathogen::infection::Infection;
@@ -81,7 +83,7 @@ mod test {
     /// Checks if an infection will eventually become mature
     #[test]
     fn infection_starts() {
-        let pathogen = Rc::new(Pathogen::new("Testogen".to_string(),
+        let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
                                              1000,
                                              0.0005,
                                              0.03,

@@ -1,6 +1,7 @@
 use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::game::graph::Graph;
 use crate::game::pathogen::Pathogen;
@@ -17,7 +18,7 @@ pub trait PathogenType{
     fn get_mutativity(&self) -> f64;
     fn get_recovery_base_chance(&self) -> f64;
     fn get_recovery_chance_increase(&self) -> f64;
-    fn get_symptoms_map(&self) -> (Graph<usize, f64, Rc<Symptom>>, HashSet<usize>);
+    fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>);
 
 
     fn create_pathogen(&self, name: &str, mutation_ticks: usize) -> Pathogen {
@@ -61,17 +62,19 @@ impl PathogenType for Virus {
     }
 
     fn get_recovery_chance_increase(&self) -> f64 {
-        1.0
+        5.0
     }
 
 
-    fn get_symptoms_map(&self) -> (Graph<usize, f64, Rc<Symptom>>, HashSet<usize>) {
+    fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>) {
         let mut builder = SymptomMapBuilder::new();
         let mut set = HashSet::new();
 
         let mut builder_entry = builder.add(RunnyNose.get_symptom());
         set.insert(builder_entry.node());
-        builder_entry.next_symptom(Cough.get_symptom(), 0.02);
+        builder_entry.next_symptom(Cough(1).get_symptom(), 0.5)
+            .next_symptom(Cough(2).get_symptom(), 0.02)
+            .next_symptom(Cough(3).get_symptom(), 0.01);
 
         (builder.get_map(), set)
     }

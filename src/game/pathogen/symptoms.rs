@@ -1,9 +1,11 @@
 use std::fmt::{Debug, Error, Formatter, Result};
 use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::usize;
 
 use crate::game::graph::{Graph, GraphResult, Node};
+use crate::game::population::Person;
 
 pub struct Symptom {
     name: String,
@@ -13,7 +15,8 @@ pub struct Symptom {
     fatality_increase: f64, // percentage increase
     internal_spread_rate_increase: f64, // percentage increase
     recovery_chance_base: Option<f64>,
-    additional_effect: Option<Box<fn()>>
+    additional_effect: Option<fn()>,
+    recovery_function: Option<Arc<dyn Fn(&mut Person) + Send + Sync>>
 }
 
 impl Symptom {
@@ -25,7 +28,9 @@ impl Symptom {
                fatality_increase: f64,
                internal_spread_rate_increase: f64,
                recovery_chance_base: Option<f64>,
-               additional_effect: Option<fn()>) -> Self {
+               additional_effect: Option<fn()>,
+               recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
+               -> Self {
         Symptom {
             name,
             description,
@@ -36,8 +41,9 @@ impl Symptom {
             recovery_chance_base,
             additional_effect: match additional_effect {
                 None => { None },
-                Some(f) => { Some(Box::new(f))},
-            }
+                Some(f) => { Some(f)},
+            },
+            recovery_function: recovery_function.map(|f| f.clone())
         }
     }
 
@@ -80,6 +86,11 @@ impl Symptom {
         }
     }
 
+
+    pub fn get_recovery_effect(&self) -> &Option<Arc<dyn Fn(&mut Person) + Send + Sync>> {
+        &self.recovery_function
+    }
+
 }
 
 pub trait Symp {
@@ -89,15 +100,15 @@ pub trait Symp {
 
 
 pub trait SymptomMap {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>>;
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>>;
 
-    fn new() -> Graph<usize, f64, Rc<Symptom>> {
+    fn new() -> Graph<usize, f64, Arc<Symptom>> {
         Graph::new()
     }
 }
 
-impl SymptomMap for Graph<usize, f64, Rc<Symptom>> {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>> {
+impl SymptomMap for Graph<usize, f64, Arc<Symptom>> {
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>> {
         self
     }
 }
@@ -111,8 +122,8 @@ impl Debug for Symptom {
 /// Enables easy creation of Symptoms and a Symptom Map
 /// > Handles the creation of RC pointers and ids
 pub struct SymptomMapBuilder {
-    symptoms_map: Graph<usize, f64, Rc<Symptom>>,
-    symptoms: Vec<Rc<Symptom>>,
+    symptoms_map: Graph<usize, f64, Arc<Symptom>>,
+    symptoms: Vec<Arc<Symptom>>,
     next_id: usize
 }
 
@@ -138,7 +149,7 @@ impl SymptomMapBuilder {
 
     pub fn add(&mut self, symptom: Symptom) -> SymptomMapBuilderEntry {
         let id = self.get_next_id();
-        let rc_ptr = Rc::new(symptom);
+        let rc_ptr = Arc::new(symptom);
         self.symptoms.push(rc_ptr.clone());
         self.symptoms_map.add_node(id, rc_ptr).unwrap();
         SymptomMapBuilderEntry::new(id, self)
@@ -146,7 +157,7 @@ impl SymptomMapBuilder {
 
     pub fn push(&mut self, symptom: Symptom) -> usize {
         let id = self.get_next_id();
-        let rc_ptr = Rc::new(symptom);
+        let rc_ptr = Arc::new(symptom);
         self.symptoms.push(rc_ptr.clone());
         self.symptoms_map.add_node(id, rc_ptr).unwrap();
         id
@@ -158,7 +169,7 @@ impl SymptomMapBuilder {
 }
 
 impl SymptomMap for SymptomMapBuilder {
-    fn get_map(self) -> Graph<usize, f64, Rc<Symptom>> {
+    fn get_map(self) -> Graph<usize, f64, Arc<Symptom>> {
         self.symptoms_map
     }
 }
@@ -177,7 +188,7 @@ impl <'a> SymptomMapBuilderEntry<'a> {
         self.node
     }
 
-    pub fn next_symptom(&mut self, symptom: Symptom, mutation_chance: f64) -> SymptomMapBuilderEntry {
+    pub fn next_symptom(&mut self, symptom: Symptom, mutation_chance: f64) -> SymptomMapBuilderEntry{
         let output = self.map_builder.add(symptom);
         let id1 = self.node;
         let id2 = output.node;
@@ -198,22 +209,85 @@ impl <'a> SymptomMapBuilderEntry<'a> {
 }
 
 pub mod base {
-    use crate::game::pathogen::symptoms::{Symp, Symptom};
+    use std::cell::RefCell;
+    use std::sync::{Arc, Mutex};
 
-    /// Person can never recover
-    pub struct Undying;
-    impl Symp for Undying {
-        fn get_symptom(&self) -> Symptom {
-            Symptom::new(
-                "Immunity Immunity".to_string(),
-                "The immune system can never beat the pathogen, and the person will never recover".to_string(),
-                100.0,
-                1.0001,
-                1.0,
-                1.0,
-                Some(0.0),
-                None
-            )
+    use crate::game::pathogen::symptoms::{Symp, Symptom};
+    use crate::game::population::Person;
+
+    /// Cheat symptoms, way too powerful or weak for standard viruses
+    pub mod cheat {
+        use super::*;
+
+        /// Person can never recover
+        pub struct Undying;
+
+        impl Symp for Undying {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    "Immunity Immunity".to_string(),
+                    "The immune system can never beat the pathogen, and the person will never recover".to_string(),
+                    100.0,
+                    1.0001,
+                    1.0,
+                    1.0,
+                    Some(0.0),
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub fn create_recovery_function<'a, F>(function: F) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
+            where F: Fn(&'a mut Person) + Send + Sync + 'a {
+            let output: Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a> = Arc::new(function);
+            output
+        }
+
+        // Person are never immune to the Pathogen by forcing the Person to remove their infection
+        pub struct NeverImmune;
+
+        impl Symp for NeverImmune {
+            fn get_symptom(&self) -> Symptom {
+                let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
+                    |person| {
+                        person.remove_immunity()
+                    }
+                );
+
+
+                Symptom::new(
+                    "Viral Amnesia".to_string(),
+                    "What Virus? ".to_string(),
+                    1.0,
+                    1.0,
+                    1.0,
+                    100.0,
+                    None,
+                    None,
+                    Some(
+                        &function
+                    )
+                )
+            }
+        }
+
+        pub struct NoSpread;
+
+        impl Symp for NoSpread {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    "Catch me if you can!".to_string(),
+                    "Which is pretty unlikely. -100% infection rate".to_string(),
+                    0.0,
+                    1.0,
+                    1.0,
+                    100.0,
+                    None,
+                    None,
+                    None
+                )
+            }
         }
     }
 
@@ -223,29 +297,94 @@ pub mod base {
             Symptom::new(
                 "A Runny Nose".to_string(),
                 "Some serious leakage problems".to_string(),
-                100.0,
+                900.0,
                 1.0001,
                 1.0,
                 1.0,
+                None,
                 None,
                 None
             )
         }
     }
 
-    pub struct Cough;
+    pub struct Cough(pub u8);
     impl Symp for Cough {
         fn get_symptom(&self) -> Symptom {
             Symptom::new(
-                "Cough".to_string(),
+                format!("Cough {}", self.0),
                 "A upper respiratory cough".to_string(),
-                100.0,
-                1.1,
+                9.5,
+                1.5,
                 1.0,
                 1.0,
                 None,
+                None,
                 None
             )
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::cell::RefCell;
+    use std::sync::{Arc, mpsc, Mutex};
+    use std::sync::mpsc::TryRecvError;
+    use std::thread;
+    use std::thread::spawn;
+    use std::time::Duration;
+
+    use rand::thread_rng;
+
+    use crate::game::pathogen::symptoms::base::cheat::NeverImmune;
+    use crate::game::pathogen::symptoms::Symp;
+    use crate::game::pathogen::types::{PathogenType, Virus};
+    use crate::game::population::Person;
+    use crate::game::population::Sex::Male;
+    use crate::game::time::Age;
+    use crate::game::Update;
+
+    #[test]
+    fn never_immune_removes_immunity() {
+        let mut p = Virus.create_pathogen("Test", 0);
+        let activations = Arc::new(Mutex::new(0));
+        p.acquire_symptom(&NeverImmune.get_symptom(), None);
+
+        let mut person  = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
+        let arc = Arc::new(p);
+        person.infect(&arc);
+
+        assert!(person.infected(), "Person must be infected");
+        let (tx, rx) = mpsc::channel();
+
+        let handle = spawn(move || {
+            while !person.recovered() {
+                match rx.try_recv() {
+                    Ok(_) => {
+                        return Ok(true);
+                    },
+                    Err(TryRecvError::Empty) => {
+
+                    },
+                    Err(_) => {
+                        return Err(());
+                    }
+                }
+
+                person.update(20);
+            }
+
+            Ok(false)
+        }
+        );
+
+        thread::sleep(Duration::from_secs(1));
+        tx.send(()).unwrap();
+        if let Ok(Ok(not_recovered)) = handle.join() {
+            assert!(not_recovered, "The person should have never recovered")
+        } else {
+            panic!("Thread errored out when it should not have")
         }
     }
 }
