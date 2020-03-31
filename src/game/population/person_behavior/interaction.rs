@@ -48,7 +48,7 @@ impl Controller for InteractionController {
             };
             let severity_effect = 1.0 - severity;
             let count = thread_rng().gen_range(0, 7);
-            /*
+
             for _ in 0..count {
 
                 if roll(INTERACTION_CHANCE * severity_effect) {
@@ -72,7 +72,7 @@ impl Controller for InteractionController {
                     }
                 }
             }
-            */
+
         }
 
 
