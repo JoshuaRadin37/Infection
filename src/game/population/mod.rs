@@ -1,6 +1,8 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
+use std::fmt::{Debug, Error, Formatter, Result};
+use std::mem;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard};
@@ -9,13 +11,13 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use rand::{random, Rng};
 
+use crate::game::{roll, Update};
 use crate::game::pathogen::infection::Infection;
 use crate::game::pathogen::Pathogen;
 use crate::game::pathogen::symptoms::Symp;
 use crate::game::population::Condition::{Normal, Sick};
 use crate::game::population::Sex::{Female, Male};
 use crate::game::time::{Age, Time};
-use crate::game::Update;
 
 pub mod person_behavior;
 
@@ -62,6 +64,12 @@ pub struct Person {
     modifiers: Mutex<Vec<Box<dyn HealthModifier + Sync + Send>>>,
     infection: Mutex<Option<Infection>>,
     recovered_status: RwLock<bool>,
+}
+
+impl Debug for Person {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Person {}", self.id)
+    }
 }
 
 
@@ -131,12 +139,7 @@ impl Person {
     }
 
     pub fn recovered(&self) -> bool {
-        match &*self.infection.lock().unwrap() {
-            None => { false }
-            Some(i) => {
-                i.recovered()
-            }
-        }
+        *self.recovered_status.read().unwrap()
     }
 
     /// Removes the immunity from someone
@@ -157,20 +160,24 @@ impl Person {
     }
 
 
-    pub fn interact_with<'a>(&self, other: &'a mut Person) -> &'a Person {
+    /// Perform an interaction with another person
+    ///
+    /// ###Return
+    /// Whether the other person just became infected
+    pub fn interact_with(&self, other: &mut Person) -> bool {
         if self.infected() {
             if let Some(ref infection) = *self.infection.lock().unwrap() {
                 if infection.active_case() {
-                    if Pathogen::roll(*infection.get_pathogen().catch_chance()) {
+                    if roll(*infection.get_pathogen().catch_chance()) {
                         let pathogen = Arc::new(infection.get_pathogen().mutate());
 
-                        other.infect(&pathogen);
+                        return other.infect(&pathogen);
                     }
                 }
             }
 
         }
-        other
+        false
     }
 
 }
@@ -190,21 +197,74 @@ impl Update for Person {
             },
         }
 
-        if self.recovered() && !*self.recovered_status.read().unwrap() {
-            *self.recovered_status.write().unwrap() = true;
-            let guard = *self.infection.lock();
-            match guard {
-                None => {},
-                Some(i) => {
-                    i.get_pathogen().perform_recovery(self);
-                },
+
+        if !self.recovered() {
+            let infection_recovered = {
+                let guard1 = &*self.infection.lock().unwrap();
+                if let Some(i) = guard1 {
+                    i.recovered()
+                } else {
+                    false
+                }
+            };
+
+            if infection_recovered {
+                *self.recovered_status.write().unwrap() = true;
+                let mut lock = self.infection.lock();
+                let guard = (&*lock.unwrap()).clone();
+                {
+                    match guard {
+                        None => {},
+                        Some(i) => {
+                            i.get_pathogen().perform_recovery(self);
+                        },
+                    }
+                }
             }
         }
+
+
+
+            /*
+            let mut lock = self.infection.lock();
+            mem::replace(&mut *lock.unwrap(), guard);
+            */
+
 
     }
 
     fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
         vec![]
+    }
+}
+
+
+
+
+
+pub struct PersonBuilder {
+    count: usize
+}
+
+impl PersonBuilder {
+    pub fn new() -> Arc<Mutex<PersonBuilder>> {
+        Arc::new(Mutex::new(Self {
+            count: 0
+        }))
+    }
+
+    fn create_person(&mut self,
+                     age: Age,
+                     sex: Sex,
+                     pre_existing_condition: f64) -> Person {
+        let id = self.count;
+        self.count += 1;
+        Person::new(
+            id,
+            age,
+            sex,
+            pre_existing_condition
+        )
     }
 }
 
@@ -229,35 +289,6 @@ impl <F> PopulationDistribution for F where F : Fn(usize) -> f64 {
         self(age)
     }
 }
-
-
-
-pub struct PersonBuilder {
-    count: usize
-}
-
-impl PersonBuilder {
-    fn new() -> Arc<Mutex<PersonBuilder>> {
-        Arc::new(Mutex::new(Self {
-            count: 0
-        }))
-    }
-
-    fn create_person(&mut self,
-                     age: Age,
-                     sex: Sex,
-                     pre_existing_condition: f64) -> Person {
-        let id = self.count;
-        self.count += 1;
-        Person::new(
-            id,
-            age,
-            sex,
-            pre_existing_condition
-        )
-    }
-}
-
 
 
 impl Population {
@@ -311,6 +342,15 @@ impl Population {
         }
     }
 
+
+    /// gets the count of people who are either infected or recovered
+    pub fn get_all_ever_infected(&self) -> usize {
+        self.get_everyone().iter().filter(|p| {
+            let person = & *p.read().unwrap();
+            person.recovered() || person.infected()
+        }).count()
+    }
+
     pub fn infect_one(&mut self, pathogen: &Arc<Pathogen>) -> bool {
         if self.people.is_empty() {
             panic!("Population is empty, can't infect anyone");
@@ -320,6 +360,12 @@ impl Population {
             let person_id = (random::<f64>() * self.people.len() as f64) as usize;
 
             let person = self.people.get(person_id).unwrap().clone();
+            {
+                let read = person.read().unwrap();
+                if read.infected() || read.recovered() {
+                    continue;
+                }
+            }
             if person.write().unwrap().infect(pathogen) {
                 self.infected.push(person);
                 break true;
@@ -337,10 +383,63 @@ impl Population {
         }
     }
 
-    pub fn get_infected(&self) -> Vec<&Person> {
-        let mut output = Vec::new();
+    pub fn get_everyone(&self) -> &Vec<Arc<RwLock<Person>>> {
+        &self.people
+    }
 
-        output
+    pub fn get_infected(&self) -> &Vec<Arc<RwLock<Person>>> {
+        &self.infected
+    }
+}
+
+impl Update for Population {
+    fn update_self(&mut self, delta_time: usize) {
+        let mut remove = Vec::new();
+        for x in self.get_infected() {
+            {
+                let person = &mut *x.write().expect("Should be able to get person");
+                person.update(delta_time);
+            }
+            {
+                let person = & *x.read().expect("Should be able to get person");
+                if person.recovered() {
+                    let index = self.infected.iter().position(|p| &*p.read().unwrap() == person);
+                    if let Some(index) = index {
+                        remove.push(index);
+                    }
+                }
+            }
+        }
+
+        for r in remove {
+            let recovered = self.infected.remove(r);
+            // println!("Removed recovered {:?}", recovered);
+        }
+    }
+
+    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
+        vec![]
+    }
+}
+
+pub struct UniformDistribution { min_age: usize, max_age: usize}
+
+impl UniformDistribution {
+    pub fn new(min_age: usize, max_age: usize) -> Self {
+        Self {
+            min_age, max_age
+        }
+    }
+}
+
+impl PopulationDistribution for UniformDistribution {
+    fn get_percent_of_pop(&self, age: usize) -> f64 {
+        if age < self.min_age || age > self.max_age {
+            0.0
+        } else {
+            1.0 / (self.max_age - self.min_age) as f64
+        }
+
     }
 }
 
@@ -358,31 +457,10 @@ mod test {
     use crate::game::pathogen::symptoms::base::Undying;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
-    use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution};
+    use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution};
     use crate::game::population::Sex::Male;
     use crate::game::time::Age;
     use crate::game::Update;
-
-    struct UniformDistribution { min_age: usize, max_age: usize}
-
-    impl UniformDistribution {
-        fn new(min_age: usize, max_age: usize) -> Self {
-            Self {
-                min_age, max_age
-            }
-        }
-    }
-
-    impl PopulationDistribution for UniformDistribution {
-        fn get_percent_of_pop(&self, age: usize) -> f64 {
-            if age < self.min_age || age > self.max_age {
-                0.0
-            } else {
-                1.0 / (self.max_age - self.min_age) as f64
-            }
-
-        }
-    }
 
     #[test]
     fn can_transfer() {
@@ -456,10 +534,5 @@ mod test {
         assert!(pop.infect_one(&pathogen));
     }
 
-    #[test]
-    fn community_transfer() {
-        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
-        let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
-        assert!(pop.infect_one(&pathogen));
-    }
+
 }

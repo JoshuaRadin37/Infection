@@ -16,7 +16,7 @@ const ATTEMPTS: usize = 100;
 #[ignore]
 fn infection_recovery_test() {
     let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
-                                         10000000,
+                                         10000,
                                          0.0005,
                                          0.03,
                                          0.03,

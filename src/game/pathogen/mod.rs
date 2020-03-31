@@ -10,6 +10,7 @@ use rand::Rng;
 use crate::game::graph::Graph;
 use crate::game::pathogen::symptoms::{Symptom, SymptomMap};
 use crate::game::population::Person;
+use crate::game::roll;
 use crate::game::time::{Time, TimeUnit};
 
 pub mod infection;
@@ -82,9 +83,7 @@ impl Pathogen {
         pathogen
     }
 
-    pub fn roll(chance: f64) -> bool {
-        rand::thread_rng().gen_bool(chance)
-    }
+
 
     pub fn get_acquired(&self) -> Vec<&usize> {
         self.acquired_map.iter().map(|i| i).collect()
@@ -223,7 +222,7 @@ impl Pathogen {
         let potential_gains = self.get_potential_gains();
 
         for (id, chance) in potential_gains {
-            if Self::roll(chance) && !next_pathogen.acquired_map.contains(id) {
+            if roll(chance) && !next_pathogen.acquired_map.contains(id) {
                 next_pathogen.acquire_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut(), Some(*id));
                 next_pathogen.acquired_map.insert(*id);
             }
@@ -232,7 +231,7 @@ impl Pathogen {
         let potential_losses = self.get_potential_losses();
 
         for (id, chance) in potential_losses {
-            if Self::roll(chance) && next_pathogen.acquired_map.contains(id) {
+            if roll(chance) && next_pathogen.acquired_map.contains(id) {
                 next_pathogen.remove_symptom(self.symptoms_map.get(id).unwrap().clone().borrow_mut(), Some(*id));
                 next_pathogen.acquired_map.remove(id);
             }
@@ -282,12 +281,11 @@ mod test {
         p.acquire_symptom(&s, Some(0));
         assert_eq!(p.on_recover.len(), 1, "Although symptom had recover function, wasn't added to list");
         let mut person_a = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
-        person_a.infect(&Arc::new(p));
+        let mut arc = Arc::new(p);
+        person_a.infect(&arc);
 
 
-        p.perform_recovery(&mut person_a);
+        arc.perform_recovery(&mut person_a);
         assert_eq!(*count.lock().unwrap(), 1, "Problem with recovery functions acting on objects");
-        p.remove_symptom(&s, Some(0));
-        assert_eq!(p.on_recover.len(), 0, "Although symptom had recover function, wasn't removed to list");
     }
 }

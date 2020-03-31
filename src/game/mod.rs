@@ -2,6 +2,8 @@ use std::ops::AddAssign;
 use std::thread::sleep;
 use std::time::Duration;
 
+use rand::Rng;
+
 use crate::game::time::TimeUnit;
 
 pub mod board;
@@ -51,6 +53,10 @@ pub fn tick() {
 
 pub fn tick_to_game_time_conversion(delta_time: usize) -> TimeUnit {
     TimeUnit::Minutes(delta_time / TICKS_TO_GAME_MIN)
+}
+
+pub fn roll(chance: f64) -> bool {
+    rand::thread_rng().gen_bool(chance)
 }
 
 #[cfg(test)]

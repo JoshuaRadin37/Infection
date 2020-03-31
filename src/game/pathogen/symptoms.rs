@@ -209,7 +209,8 @@ impl <'a> SymptomMapBuilderEntry<'a> {
 }
 
 pub mod base {
-    use std::sync::Arc;
+    use std::cell::RefCell;
+    use std::sync::{Arc, Mutex};
 
     use crate::game::pathogen::symptoms::{Symp, Symptom};
     use crate::game::population::Person;
@@ -239,25 +240,25 @@ pub mod base {
     }
 
     // Person are never immune to the Pathogen by forcing the Person to remove their infection
-    pub struct NeverImmune;
+    pub struct NeverImmune { pub activations: Option<Arc<Mutex<usize>>> }
     impl Symp for NeverImmune {
         fn get_symptom(&self) -> Symptom {
 
             let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
-                |person| {
-                    person.remove_immunity();
-                }
+                    |person| {
+                        person.remove_immunity()
+                    }
             );
 
 
             Symptom::new(
-                "Immunity Immunity".to_string(),
-                "The immune system can never beat the pathogen, and the person will never recover".to_string(),
+                "Viral Amnesia".to_string(),
+                "What Virus? ".to_string(),
+                1.0,
+                1.0,
+                1.0,
                 100.0,
-                1.0001,
-                1.0,
-                1.0,
-                Some(0.0),
+                None,
                 None,
                 Some(
                     &function
@@ -273,7 +274,7 @@ pub mod base {
             Symptom::new(
                 "A Runny Nose".to_string(),
                 "Some serious leakage problems".to_string(),
-                100.0,
+                900.0,
                 1.0001,
                 1.0,
                 1.0,
@@ -290,7 +291,7 @@ pub mod base {
             Symptom::new(
                 "Cough".to_string(),
                 "A upper respiratory cough".to_string(),
-                100.0,
+                900.0,
                 1.1,
                 1.0,
                 1.0,
@@ -304,16 +305,64 @@ pub mod base {
 
 #[cfg(test)]
 mod test {
+    use std::cell::RefCell;
+    use std::sync::{Arc, mpsc, Mutex};
+    use std::sync::mpsc::TryRecvError;
+    use std::thread;
+    use std::thread::spawn;
+    use std::time::Duration;
+
+    use rand::thread_rng;
+
     use crate::game::pathogen::symptoms::base::NeverImmune;
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
+    use crate::game::population::Person;
+    use crate::game::population::Sex::Male;
+    use crate::game::time::Age;
+    use crate::game::Update;
 
     #[test]
     fn never_immune_removes_immunity() {
         let mut p = Virus.create_pathogen("Test", 0);
-        p.acquire_symptom(&NeverImmune.get_symptom(), None);
+        let activations = Arc::new(Mutex::new(0));
+        p.acquire_symptom(&NeverImmune { activations: Some(activations.clone()) }.get_symptom(), None);
 
+        let mut person  = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
+        let arc = Arc::new(p);
+        person.infect(&arc);
 
+        assert!(person.infected(), "Person must be infected");
+        let (tx, rx) = mpsc::channel();
+
+        let handle = spawn(move || {
+            while !person.recovered() {
+                match rx.try_recv() {
+                    Ok(_) => {
+                        return Ok(true);
+                    },
+                    Err(TryRecvError::Empty) => {
+
+                    },
+                    Err(_) => {
+                        return Err(());
+                    }
+                }
+
+                person.update(20);
+            }
+
+            Ok(false)
+        }
+        );
+
+        thread::sleep(Duration::from_secs(1));
+        tx.send(()).unwrap();
+        if let Ok(Ok(not_recovered)) = handle.join() {
+            assert!(not_recovered, "The person should have never recovered")
+        } else {
+            panic!("Thread errored out when it should not have")
+        }
     }
 }
 

@@ -62,7 +62,7 @@ impl PathogenType for Virus {
     }
 
     fn get_recovery_chance_increase(&self) -> f64 {
-        1.0
+        5.0
     }
 
 

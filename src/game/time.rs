@@ -617,7 +617,7 @@ impl Display for TimeUnit {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Age(TimeUnit); // in minutes
 
 impl Age {
