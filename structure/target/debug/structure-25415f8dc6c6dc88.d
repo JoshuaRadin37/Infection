@@ -1,0 +1,1 @@
+C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\target\debug\structure-25415f8dc6c6dc88.exe: C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\graph.rs C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\lib.rs C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\time.rs

@@ -63,13 +63,13 @@ impl Pathogen {
 
         let mut pathogen = Pathogen {
             name,
-            catch_chance: 0.000001,
-            severity: 0.000001,
-            fatality: 0.000001,
-            internal_spread_rate: 0.01,
+            catch_chance: 0.999999,
+            severity: 0.999999,
+            fatality: 0.999999,
+            internal_spread_rate: 0.99,
             min_count_for_symptoms,
-            mutation,
-            recovery_chance_base,
+            mutation: 1.0 - mutation,
+            recovery_chance_base: 1.0 - recovery_chance_base,
             recovery_chance_increase,
             symptoms_map: symptoms_map.get_map(),
             acquired_map: acquired.clone(),
@@ -137,10 +137,10 @@ impl Pathogen {
     }
 
     pub fn acquire_symptom(&mut self, symptom: &Symptom, symptom_id: Option<usize>) {
-        self.catch_chance *= symptom.get_catch_chance_increase();
-        self.severity *= symptom.get_severity_increase();
-        self.fatality *= symptom.get_fatality_increase();
-        self.internal_spread_rate *= symptom.get_severity_increase();
+        self.catch_chance *= 1.0 - symptom.get_catch_chance_increase() / 100.0;
+        self.severity *= 1.0 - symptom.get_severity_increase() / 100.0;
+        self.fatality *= 1.0 - symptom.get_fatality_increase() / 100.0;
+        self.internal_spread_rate *= 1.0 - symptom.get_internal_spread_rate_increase() / 100.0;
         if let Some(base) = symptom.get_recovery_chance_base() {
             self.recovery_chance_base = *base;
         }
@@ -155,10 +155,10 @@ impl Pathogen {
     }
 
     pub fn remove_symptom(&mut self, symptom: &Symptom, symptom_id: Option<usize>) {
-        self.catch_chance /= symptom.get_catch_chance_increase();
-        self.severity /= symptom.get_severity_increase();
-        self.fatality /= symptom.get_fatality_increase();
-        self.internal_spread_rate /= symptom.get_severity_increase();
+        self.catch_chance /= 1.0 - symptom.get_catch_chance_increase() / 100.0;
+        self.severity /= 1.0 - symptom.get_severity_increase() / 100.0;
+        self.fatality /= 1.0 - symptom.get_fatality_increase() / 100.0;
+        self.internal_spread_rate /= 1.0 -symptom.get_internal_spread_rate_increase() / 100.0;
 
         if let Some(id) = symptom_id {
             if self.recover_function_position.contains_key(&id) {
@@ -172,16 +172,24 @@ impl Pathogen {
         &self.name
     }
 
-    pub fn catch_chance(&self) -> &f64 {
-        &self.catch_chance
+    pub fn catch_chance(&self) -> f64 {
+        1.0 - self.catch_chance
     }
 
-    pub fn severity(&self) -> &f64 {
-        &self.severity
+    pub fn severity(&self) -> f64 {
+        1.0 - self.severity
     }
 
-    pub fn fatality(&self) -> &f64 {
-        &self.fatality
+    pub fn fatality(&self) ->  f64 {
+        1.0 - self.fatality
+    }
+
+    fn recovery_chance_base(&self) -> f64 {
+        1.0 - self.recovery_chance_base
+    }
+
+    pub fn internal_spread_rate(&self) -> f64 {
+        1.0 - self.internal_spread_rate
     }
 
     fn recover_chance(&self, passed: TimeUnit) -> f64 {
@@ -190,7 +198,7 @@ impl Pathogen {
     }
 
     fn add_recovery_symptom<F>(&mut self, function: F)
-    where F : 'static + Fn(&mut Person) + Send + Sync {
+        where F : 'static + Fn(&mut Person) + Send + Sync {
         self.on_recover.push(Arc::new(function))
     }
 
@@ -242,6 +250,19 @@ impl Pathogen {
     }
 }
 
+impl Default for Pathogen {
+    fn default() -> Self {
+        Pathogen::new("Testogen".to_string(),
+                      10000,
+                      0.0005,
+                      0.03,
+                      0.03,
+                      Graph::new(),
+                      HashSet::new()
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::{Arc, Mutex};
@@ -254,8 +275,58 @@ mod test {
     use crate::game::population::Sex::Male;
 
     #[test]
-    fn test_add_and_remove_on_recover_function() {
-        let mut p = Virus.create_pathogen("Test", 0);
+    fn add_symptom_increases_catch_chance() {
+        let mut p = Pathogen::default();
+        let catch = p.catch_chance();
+
+        let s =Symptom::new(
+            "Test".to_string(),
+            "Test".to_string(),
+            99.0,
+            1.0001,
+            1.0,
+            1.0,
+            Some(0.0),
+            None,
+            None
+        );
+
+        p.acquire_symptom(&s, None);
+
+        assert!(p.catch_chance() > catch);
+
+    }
+
+    #[test]
+    fn add_and_remove_symptom_maintains_consistency() {
+        let mut p = Pathogen::default();
+        let catch = p.catch_chance();
+
+        let s =Symptom::new(
+            "Test".to_string(),
+            "Test".to_string(),
+            99.0,
+            1.0001,
+            1.0,
+            1.0,
+            Some(0.0),
+            None,
+            None,
+        );
+
+        p.acquire_symptom(&s, None);
+
+        assert!(p.catch_chance() > catch);
+
+        p.remove_symptom(&s, None);
+
+        assert_eq!(p.catch_chance(), catch);
+
+    }
+
+    #[test]
+    fn add_and_remove_on_recover_function() {
+        let mut p = Pathogen::default();
         let count = Arc::new(Mutex::new(0));
         let count_clone = count.clone();
         let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
@@ -268,7 +339,7 @@ mod test {
         let s =Symptom::new(
             "Test".to_string(),
             "Test".to_string(),
-            100.0,
+            99.0,
             1.0001,
             1.0,
             1.0,

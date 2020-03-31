@@ -8,6 +8,8 @@ use structure::graph::{Graph, GraphResult};
 
 use crate::game::population::Person;
 
+///
+/// A symptom are the building blocks of pathogens, and effect the way they behave while in a person
 pub struct Symptom {
     name: String,
     description: String,
@@ -22,6 +24,51 @@ pub struct Symptom {
 
 impl Symptom {
 
+    /// Creates a new symptom that affects the way a [Pathogen] behaves
+    ///
+    /// # Inputs
+    /// * `name` - The name of the symptom
+    /// * `description` - description
+    /// * `catch_chance_increase` - A number in the range of (-100, 100) representing the percent change of the catch chance when an
+    /// infected person interacts with another person
+    /// * `severity_increase` - A number in the range of (-100, 100) representing the percent change of the severity of an infection,
+    /// which impacts the likelyhood of a person going to the doctor, and not interacting with people or traveling
+    /// * `fatality_increase` - A number in the range of (-100, 100) representing the percent change of the fatality of an infection,
+    /// * `internal_spread_rate_increase` - A number in the range of (-100, 100) representing the percent change of the spread rate within an
+    /// infected person, where the greater the value, the faster a person's case becomes active
+    /// where the higher the fatality the more likely an infected person is to lose a hp per tick
+    /// * `recovery_chance_base` - If a `Some(...)` value, set the base recovery chance to that value
+    /// * `additonal_effect` - If a `Some(...)` value, when a person gets infected with a pathogen with this symptom, this function is run
+    /// (Note: a symptom with such a function can not be reversed)
+    /// * `recovery_function` - If a `Some(...)` value, this is a function that is run on a person who just recovered from a pathogen with
+    /// this symptom
+    ///
+    /// # Example
+    ///
+    /// ```
+    ///use infection::game::pathogen::symptoms::Symptom;
+    ///Symptom::new(
+    ///                 "A Runny Nose".to_string(),
+    ///                 "Some serious leakage problems".to_string(),
+    ///                 10.0,
+    ///                 1.0001,
+    ///                 1.0,
+    ///                 1.0,
+    ///                 None,
+    ///                 None,
+    ///                 None
+    ///             );
+    ///
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// The function will panic if any of the `*_increase` parameters are not within the range of (100, -100)\
+    ///
+    /// ```rust,should_panic
+    ///use infection::game::pathogen::symptoms::Symptom;
+    /// Symptom::new("Panic attacks".to_string(), "This panics".to_string(), 25.0, 35.0, 120.0, 0.0, None, None, None);
+    /// ```
     pub fn new(name: String,
                description: String,
                catch_chance_increase: f64,
@@ -32,6 +79,20 @@ impl Symptom {
                additional_effect: Option<fn()>,
                recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
                -> Self {
+
+        if catch_chance_increase.abs() >= 100.0 {
+            panic!("Catch chance increase must be in range (-100, 100), but was given {}", catch_chance_increase)
+        }
+        if severity_increase.abs() >= 100.0 {
+            panic!("Severity increase must be in range (-100, 100), but was given {}", severity_increase)
+        }
+        if fatality_increase.abs() >= 100.0 {
+            panic!("Fatality increase must be in range (-100, 100), but was given {}", fatality_increase)
+        }
+        if internal_spread_rate_increase.abs() >= 100.0 {
+            panic!("Catch chance increase must be in range (-100, 100), but was given {}", internal_spread_rate_increase)
+        }
+
         Symptom {
             name,
             description,
@@ -228,7 +289,7 @@ pub mod base {
                 Symptom::new(
                     "Immunity Immunity".to_string(),
                     "The immune system can never beat the pathogen, and the person will never recover".to_string(),
-                    100.0,
+                    99.9,
                     1.0001,
                     1.0,
                     1.0,
@@ -263,7 +324,7 @@ pub mod base {
                     1.0,
                     1.0,
                     1.0,
-                    100.0,
+                    99.0,
                     None,
                     None,
                     Some(
@@ -283,7 +344,7 @@ pub mod base {
                     0.0,
                     1.0,
                     1.0,
-                    100.0,
+                    99.0,
                     None,
                     None,
                     None
@@ -298,10 +359,10 @@ pub mod base {
             Symptom::new(
                 "A Runny Nose".to_string(),
                 "Some serious leakage problems".to_string(),
-                900.0,
+                5.0,
                 1.0001,
                 1.0,
-                1.0,
+                20.0,
                 None,
                 None,
                 None

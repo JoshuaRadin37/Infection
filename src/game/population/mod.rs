@@ -170,7 +170,7 @@ impl Person {
         if self.infected() {
             if let Some(ref infection) = *self.infection.lock().unwrap() {
                 if infection.active_case() {
-                    if roll(*infection.get_pathogen().catch_chance()) {
+                    if roll(infection.get_pathogen().catch_chance()) {
                         let pathogen = Arc::new(infection.get_pathogen().mutate());
 
                         return other.infect(&pathogen);

@@ -1,0 +1,1 @@
+C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\target\debug\libstructure.rlib: C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\graph.rs C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\lib.rs C:\Users\Joshua\Documents\ProgrammingWorkspace\infection\structure\src\time.rs

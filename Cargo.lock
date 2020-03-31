@@ -229,11 +229,15 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "criterion",
- "num-traits",
  "rand",
+ "rayon",
  "regex",
  "structure",
 ]
+
+[[package]]
+name = "interaction"
+version = "0.1.0"
 
 [[package]]
 name = "itertools"

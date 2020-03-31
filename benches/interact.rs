@@ -87,4 +87,5 @@ fn interaction_1000(c: &mut Criterion) {
 }
 
 criterion_group!(interact_benches, interaction_100, interaction_1000);
+
 criterion_main!(interact_benches);

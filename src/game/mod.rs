@@ -4,6 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use rand::Rng;
+use rayon::prelude::*;
 
 use structure::time::{FineGrainTimeType, Time, TimeUnit, YearsType};
 use structure::time::TimeUnit::{Days, Months, Years};
@@ -31,7 +32,7 @@ pub trait Update {
 
     fn update(&mut self, delta_time: usize) {
         self.update_self(delta_time);
-        for child in self.get_update_children() {
+        for child in self.get_update_children().par_iter() {
             child.update(delta_time);
         }
     }

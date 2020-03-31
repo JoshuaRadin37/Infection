@@ -86,12 +86,12 @@ mod community {
     #[test]
     #[ignore]
     fn full_single_community_run() {
-        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
+        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 120));
         let mut pathogen = {
             loop {
                 let output = Arc::new(Virus.create_pathogen("Test", 100));
 
-                if output.catch_chance() >= &0.01 && output.catch_chance() <= &0.1  {
+                if output.catch_chance() >= 0.01 && output.catch_chance() <= 0.1  {
                     break output;
                 }
             }

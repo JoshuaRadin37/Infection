@@ -10,6 +10,11 @@
       <sourceFolder url="file://$MODULE_DIR$/structure/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/structure/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/structure/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/interaction/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/interaction/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/interaction/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/interaction/benches" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/interaction/target" />
       <excludeFolder url="file://$MODULE_DIR$/structure/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

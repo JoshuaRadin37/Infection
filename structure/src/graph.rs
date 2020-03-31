@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter, Result};
 use std::hash::Hash;
 use std::ops::{Deref, Index, IndexMut, Range};
-use crate::graph::GraphError::{IdExists, IdDoesNotExist, EdgeAlreadyExists};
 
+use crate::graph::GraphError::{EdgeAlreadyExists, IdDoesNotExist, IdExists};
 
+///
+/// The base structure of the graph
 pub struct Node<ID = usize, T = ()> where ID : PartialEq + Copy {
     id: ID,
     value: T
@@ -55,7 +57,9 @@ impl <ID : PartialEq + Copy, T> Node<ID, T> {
 }
 
 
-
+/// Represents a graph
+///
+/// `ID` must be impl `Hash`, `Eq`, and `Copy`
 pub struct Graph<ID = usize, W = f64, T = ()>
     where
         ID : Eq + Hash + Copy  {
@@ -222,6 +226,9 @@ impl <ID, W, T> Graph<ID, W, T>
     where
         ID : Eq + Hash + Copy,
         W : Default {
+
+    ///
+    /// If the `W` of the graph has a default value, allows for the adding of edges without a weight specified
     fn add_edge_default(&mut self, u: ID, v: ID) -> GraphResult<ID> {
         self.add_edge(u, v, Default::default())
     }
@@ -269,7 +276,7 @@ impl <ID, W, T> Debug for Graph<ID, W, T>
 
 #[cfg(test)]
 mod test {
-    use crate::graph::{Node, Graph};
+    use crate::graph::{Graph, Node};
 
     #[test]
     fn is_key_works() {
