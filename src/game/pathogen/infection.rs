@@ -40,6 +40,7 @@ impl Infection {
     }
 
     pub fn attempt_recover(&mut self) {
+
         let ceiling = self.pathogen.recover_chance(self.infection_age.time_unit().clone());
 
         self.recovered = roll(ceiling)

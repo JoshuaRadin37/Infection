@@ -17,8 +17,8 @@ fn infection_recovery_test() {
     let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
                                          10000,
                                          0.0005,
-                                         0.03,
-                                         0.03,
+                                         0.0003,
+                                         0.0003,
                                          Graph::new(),
         HashSet::new()
     ));
@@ -34,13 +34,13 @@ fn infection_recovery_test() {
         }
 
         let recover_time = infection.infection_age().time_unit().clone();
-        println!("Attempt {} Recover Time: {} days", attempt, recover_time.format("{:d}"));
+        println!("Attempt {} Recover Time: {}", attempt, recover_time.format("{:d} ({:m} minutes)"));
         sum_time = sum_time + &recover_time;
         times.push(recover_time);
     }
     let avg_time = sum_time / ATTEMPTS;
     assert!(avg_time.as_days() >= 3 && avg_time.as_days() < 6, "Aiming for default recover time to be between 3 and 6 days, instead {} ({} minutes)", avg_time.format("{:d}"), avg_time);
-    // println!("Average recovery time = {}", avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m"));
+    println!("Average recovery time = {}", avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m"));
     let mut variance: f64 = times.into_iter().map(|time|
         ((usize::from(time) as isize - usize::from(&avg_time) as isize) as f64).powi(2)
     ).sum();

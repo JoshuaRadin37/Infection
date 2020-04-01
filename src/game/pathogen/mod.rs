@@ -193,8 +193,9 @@ impl Pathogen {
     }
 
     fn recover_chance(&self, passed: TimeUnit) -> f64 {
-        let days = usize::from(passed.into_days()) as f64;
-        1.0_f64.min(days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0))
+        let time = usize::from(passed.into_minutes()) as f64;
+        // days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0)
+        1.0 / ( 1.0 + std::f64::consts::E.powf(time * self.recovery_chance_increase - 3.0)) / (24.0 * 60.0)
     }
 
     fn add_recovery_symptom<F>(&mut self, function: F)

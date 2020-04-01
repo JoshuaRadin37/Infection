@@ -3,6 +3,9 @@ mod community {
     use std::sync::{Arc, Mutex};
     use std::thread;
 
+    use infection::game::pathogen::Pathogen;
+    use infection::game::pathogen::symptoms::base::cheat::{CustomCatchChance, CustomFatality};
+    use infection::game::pathogen::symptoms::Symp;
     use infection::game::pathogen::types::{PathogenType, Virus};
     use infection::game::population::{PersonBuilder, Population, UniformDistribution};
     use infection::game::population::person_behavior::Controller;
@@ -182,6 +185,84 @@ mod community {
         assert!(spread, "Pathogen failed to die out");
         assert!(!pop_arc.is_poisoned());
         println!("Infected/Recovered Count = {}", pop_arc.lock().unwrap().get_all_ever_infected());
+        println!("Took {} loops to complete", loops);
+
+    }
+
+    #[test]
+    fn full_single_community_run_with_deadly() {
+        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 60));
+        let mut pathogen = Pathogen::default();
+        pathogen.acquire_symptom(&CustomFatality(5.0).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomCatchChance(10.0).get_symptom(), None);
+
+        let pathogen = Arc::new(pathogen);
+
+        // start with 50 infected
+        for _ in 0..1 {
+            assert!(pop.infect_one(&pathogen));
+        }
+
+        let pop_arc = Arc::new(Mutex::new(pop));
+
+        {
+            let pop = pop_arc.lock().unwrap();
+            println!("Infected/Recovered Count = {}", pop.get_all_ever_infected());
+            println!("Death Count = {}", pop.get_original_population() - pop.get_total_population());
+            println!("Infected Count = {}", pop.get_infected().len());
+        }
+
+        let mut controller = InteractionController::new(&pop_arc);
+
+        let mut loops = 0;
+        let spread = loop {
+            {
+                let mut mutex_guard = pop_arc.lock().expect("Should be able to get the mutex occasionally");
+                let infected_count = mutex_guard.get_all_ever_infected();
+                if infected_count >= mutex_guard.get_everyone().len() / 2{
+                    break true;
+                } else if mutex_guard.get_infected().len() == 0 {
+                    break false;
+                }
+
+                mutex_guard.update(20);
+            }
+            controller.run();
+            println!("Loop {}:", loops);
+            let pop = pop_arc.lock().unwrap();
+            println!("Infected/Recovered Count = {}", pop.get_all_ever_infected());
+            println!("Death Count = {}", pop.get_original_population() - pop.get_total_population());
+            println!("Infected Count = {}", pop.get_infected().len());
+            loops += 1;
+        };
+        println!("Took {} loops to reach 5000 infections", loops);
+        assert!(spread, "Pathogen failed to spread to half the population and instead died");
+        assert!(!pop_arc.is_poisoned());
+
+
+        let spread = loop {
+            {
+                let mut mutex_guard = pop_arc.lock().expect("Should be able to get the mutex occasionally");
+                let infected_count = mutex_guard.get_infected().len();
+                if infected_count == 0 {
+                    break true;
+                }
+
+                mutex_guard.update(20);
+            }
+            controller.run();
+            println!("Loop {}:", loops);
+            let pop = pop_arc.lock().unwrap();
+            println!("Infected/Recovered Count = {}", pop.get_all_ever_infected());
+            println!("Death Count = {}", pop.get_original_population() - pop.get_total_population());
+            println!("Infected Count = {}", pop.get_infected().len());
+            loops += 1;
+        };
+        assert!(spread, "Pathogen failed to die out");
+        assert!(!pop_arc.is_poisoned());
+        println!("Infected/Recovered Count = {}", pop_arc.lock().unwrap().get_all_ever_infected());
+        let pop = pop_arc.lock().unwrap();
+        println!("Death Count = {}", pop.get_original_population() - pop.get_total_population());
         println!("Took {} loops to complete", loops);
 
     }
