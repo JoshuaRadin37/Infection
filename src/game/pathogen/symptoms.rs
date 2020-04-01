@@ -71,10 +71,10 @@ impl Symptom {
     /// ```
     pub fn new(name: String,
                description: String,
-               catch_chance_increase: f64,
-               severity_increase: f64,
-               fatality_increase: f64,
-               internal_spread_rate_increase: f64,
+               mut catch_chance_increase: f64,
+               mut severity_increase: f64,
+               mut fatality_increase: f64,
+               mut internal_spread_rate_increase: f64,
                recovery_chance_base: Option<f64>,
                additional_effect: Option<fn()>,
                recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
@@ -92,6 +92,24 @@ impl Symptom {
         if internal_spread_rate_increase.abs() >= 100.0 {
             panic!("Catch chance increase must be in range (-100, 100), but was given {}", internal_spread_rate_increase)
         }
+
+        if catch_chance_increase < 0.0 {
+            catch_chance_increase = 1.0 + catch_chance_increase / 100.0
+        }
+
+        if severity_increase < 0.0 {
+            severity_increase = 1.0 + severity_increase / 100.0
+        }
+
+        if fatality_increase < 0.0 {
+            fatality_increase = 1.0 + fatality_increase / 100.0
+        }
+
+        if internal_spread_rate_increase < 0.0 {
+            internal_spread_rate_increase = 1.0 + internal_spread_rate_increase / 100.0
+        }
+
+
 
         Symptom {
             name,
@@ -342,9 +360,77 @@ pub mod base {
                     "Catch me if you can!".to_string(),
                     "Which is pretty unlikely. -100% infection rate".to_string(),
                     0.0,
-                    1.0,
-                    1.0,
+                    0.0,
+                    0.0,
                     99.0,
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomCatchChance(pub f64);
+        impl Symp for CustomCatchChance {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Catch Chance {}", self.0),
+                    "Genetics are wild".to_string(),
+                    self.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomInternalSpreadRate(pub f64);
+        impl Symp for CustomInternalSpreadRate {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Internal Spread rate {}", self.0),
+                    "Genetics are wild".to_string(),
+                    0.0,
+                    0.0,
+                    0.0,
+                    self.0,
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomSeverity(pub f64);
+        impl Symp for CustomSeverity {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Severity {}", self.0),
+                    "Genetics are wild".to_string(),
+                    0.0,
+                    self.0,
+                    0.0,
+                    0.0,
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomFatality(pub f64);
+        impl Symp for CustomFatality {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Fatality {}", self.0),
+                    "Genetics are wild".to_string(),
+                    1.0,
+                    1.0,
+                    self.0,
+                    1.0,
                     None,
                     None,
                     None

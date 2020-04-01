@@ -63,9 +63,6 @@ impl Update for Infection {
         }
     }
 
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        Vec::new()
-    }
 }
 
 #[cfg(test)]

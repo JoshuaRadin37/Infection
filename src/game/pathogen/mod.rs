@@ -194,7 +194,7 @@ impl Pathogen {
 
     fn recover_chance(&self, passed: TimeUnit) -> f64 {
         let days = usize::from(passed.into_days()) as f64;
-        days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0)
+        1.0_f64.min(days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0))
     }
 
     fn add_recovery_symptom<F>(&mut self, function: F)
@@ -253,7 +253,7 @@ impl Pathogen {
 impl Default for Pathogen {
     fn default() -> Self {
         Pathogen::new("Testogen".to_string(),
-                      10000,
+                      100000000,
                       0.0005,
                       0.03,
                       0.03,

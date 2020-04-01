@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::{Ref, RefCell};
-use std::cmp::Ordering;
-use std::fmt::{Debug, Error, Formatter, Result};
+use std::cmp::{min, Ordering};
+use std::fmt::{Debug, Display, Error, Formatter, Result};
 use std::mem;
 use std::ops::DerefMut;
 use std::rc::Rc;
@@ -13,24 +13,23 @@ use rand::{random, Rng};
 
 use structure::time::Time;
 
-use crate::game::{Age, roll, Update};
+use crate::game::{Age, ParallelUpdate, roll, tick_to_game_time_conversion, Update};
 use crate::game::pathogen::infection::Infection;
 use crate::game::pathogen::Pathogen;
 use crate::game::pathogen::symptoms::Symp;
-use crate::game::population::Condition::{Normal, Sick};
+use crate::game::population::Condition::Normal;
 use crate::game::population::Sex::{Female, Male};
 
 pub mod person_behavior;
 
-
+#[derive(Debug)]
 pub enum Condition {
     Normal,
-    Sick,
-    Hospitalized,
-    Critical,
-    Dead,
+    NeedsHospital,
+    Hospitalized
 }
 
+#[derive(Debug)]
 pub enum Sex {
     Male,
     Female,
@@ -58,20 +57,27 @@ impl HealthModifier for Sex {
 pub struct Person {
     id: usize,
     age: Mutex<Age>,
-    sex: Mutex<Sex>,
+    sex: Sex,
     pre_existing_condition: f64,
-    health_points: u32,
+    health_points: RwLock<u32>,
     condition: Mutex<Condition>,
     modifiers: Mutex<Vec<Box<dyn HealthModifier + Sync + Send>>>,
     infection: Mutex<Option<Infection>>,
     recovered_status: RwLock<bool>,
 }
 
-impl Debug for Person {
+impl Display for Person {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(f, "Person {}", self.id)
     }
 }
+
+impl Debug for Person {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "Person {} {{ age: {:?}, sex: {:?}, prex: {:?}, hp: {:?}, infected: {:?}}}", self.id, self.age.lock().unwrap().0.format("{:y}y {:m(12m)}m"), self.sex, self.pre_existing_condition, self.health_points, self.infected())
+    }
+}
+
 
 
 impl Person {
@@ -85,9 +91,9 @@ impl Person {
         Person {
             id,
             age: Mutex::new(age),
-            sex: Mutex::new(sex),
+            sex,
             pre_existing_condition,
-            health_points: health,
+            health_points: RwLock::new(health),
             condition: Mutex::new(Normal),
             modifiers: Mutex::new(Vec::new()),
             infection: Mutex::new(None),
@@ -114,23 +120,26 @@ impl Person {
     }
 
 
-    pub fn health_points(&self) -> &u32 {
+    pub fn health_points(&self) -> &RwLock<u32> {
         &self.health_points
     }
 
     pub fn alive(&self) -> bool {
-        self.health_points > 0
+        *self.health_points.read().unwrap() > 0
     }
 
     pub fn dead(&self) -> bool {
         !self.alive()
     }
 
-    pub fn uninfected(&self) -> bool {
+    pub fn never_infected(&self) -> bool {
         self.infection.lock().unwrap().is_none()
     }
 
     pub fn infected(&self) -> bool {
+        if self.dead() {
+            return false;
+        }
         match &*self.infection.lock().unwrap() {
             None => { false }
             Some(i) => {
@@ -140,6 +149,9 @@ impl Person {
     }
 
     pub fn recovered(&self) -> bool {
+        if self.dead() {
+            return false;
+        }
         *self.recovered_status.read().unwrap()
     }
 
@@ -154,7 +166,6 @@ impl Person {
     pub fn infect(&mut self, pathogen: &Arc<Pathogen>) -> bool {
         if self.infection.lock().unwrap().is_none() {
             *self.infection.lock().unwrap() = Some(Infection::new(pathogen.clone()));
-            *self.condition.lock().unwrap() = Sick;
             true
         } else {
             false
@@ -167,6 +178,9 @@ impl Person {
     /// ###Return
     /// Whether the other person just became infected
     pub fn interact_with(&self, other: &mut Person) -> bool {
+        if other.infected() || other.recovered() {
+            return false;
+        }
         if self.infected() {
             if let Some(ref infection) = *self.infection.lock().unwrap() {
                 if infection.active_case() {
@@ -182,6 +196,10 @@ impl Person {
         false
     }
 
+    fn get_age_years(&self) -> u8 {
+        usize::from(self.age.lock().unwrap().0.as_years()) as u8
+    }
+
 }
 
 impl PartialEq for Person {
@@ -192,15 +210,21 @@ impl PartialEq for Person {
 
 impl Update for Person {
     fn update_self(&mut self, delta_time: usize) {
-        match &mut *self.infection.lock().unwrap() {
-            None => { },
-            Some(i) => {
-                i.update(delta_time);
-            },
+        {
+            match &mut *self.infection.lock().unwrap() { // update infection
+                None => {},
+                Some(i) => {
+                    i.update(delta_time);
+                },
+            }
         }
 
+        { // update age
+            let mut age_guard = self.age.lock().unwrap();
+            *age_guard += tick_to_game_time_conversion(delta_time);
+        }
 
-        if !self.recovered() {
+        if !self.recovered() { // update recover status
             let infection_recovered = {
                 let guard1 = &*self.infection.lock().unwrap();
                 if let Some(i) = guard1 {
@@ -212,6 +236,7 @@ impl Update for Person {
 
             if infection_recovered {
                 *self.recovered_status.write().unwrap() = true;
+                *self.condition.lock().unwrap() = Normal;
                 let mut lock = self.infection.lock();
                 let guard = (&*lock.unwrap()).clone();
                 {
@@ -225,19 +250,60 @@ impl Update for Person {
             }
         }
 
+        // update health points and condition
+        {
+
+            let max_health = {
+                let mut hp_guard = self.health_points.write().unwrap();
+                let max_health = Self::max_health(self.get_age_years(), &self.sex, self.pre_existing_condition);
+
+                if max_health < *hp_guard {
+                    *hp_guard = max_health;
+                }
+
+                max_health
+            };
+
+            if self.infected() {
+                let get_hurt = {
+                    // remove infection mutex as fast as possible
+                    match & *self.infection.lock().unwrap() {
+                        None => { panic!("Infection must exist")},
+                        Some(i) => {
+                            if !i.active_case() {
+                                false
+                            }else {
+                                roll(i.get_pathogen().fatality())
+                            }
+                        },
+                    }
+
+                };
+
+                if get_hurt {
+                    let change = &mut *self.condition.lock().unwrap();
+                    let mut hp_guard = self.health_points.write().unwrap();
+                    *hp_guard -= u32::min(*hp_guard,
+                        match change {
+                        Condition::Normal => { 1 },
+                        Condition::NeedsHospital => { 3 },
+                        Condition::Hospitalized => { 2 },
+                    });
 
 
-            /*
-            let mut lock = self.infection.lock();
-            mem::replace(&mut *lock.unwrap(), guard);
-            */
+                    match *hp_guard {
+                        hp if hp < max_health / 4 => {
+                            *change = Condition::NeedsHospital;
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
 
 
     }
 
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        vec![]
-    }
 }
 
 
@@ -274,6 +340,8 @@ impl PersonBuilder {
 pub struct Population {
     factory: Arc<Mutex<PersonBuilder>>,
     people: Vec<Arc<RwLock<Person>>>,
+    original_pop: usize,
+    current_pop: usize,
     infected: Vec<Arc<RwLock<Person>>>,
     growth_rate: f64,
 }
@@ -301,7 +369,6 @@ impl Population {
 
         for age in 0..121 {
             let people_count  = (population as f64 * population_distribution.get_percent_of_pop(age)) as usize;
-            people_created += people_count;
             for _ in 0..people_count {
                 let mut builder_guard = builder.lock().unwrap();
                 pop.push(
@@ -318,7 +385,10 @@ impl Population {
                         )
                     ))
                 );
-
+                people_created += 1;
+                if people_created == population {
+                    break;
+                }
             }
         }
 
@@ -336,9 +406,13 @@ impl Population {
             people_created += 1;
         }
 
+
+
         Population {
             factory: builder.clone(),
             people: pop,
+            original_pop: population,
+            current_pop: population,
             infected: Vec::new(),
             growth_rate
         }
@@ -392,8 +466,23 @@ impl Population {
     pub fn get_infected(&self) -> &Vec<Arc<RwLock<Person>>> {
         &self.infected
     }
+
+    pub fn get_total_population(&self) -> usize {
+        self.current_pop
+    }
+
+    pub fn get_original_population(&self) -> usize {
+        self.original_pop
+    }
+
+    pub fn age_a_year(&mut self)  {
+        for _ in 0..1200 {
+            self.update(438);
+        }
+    }
 }
 
+/*
 impl Update for Population {
     fn update_self(&mut self, delta_time: usize) {
         let mut remove = Vec::new();
@@ -420,8 +509,49 @@ impl Update for Population {
         }
     }
 
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        vec![]
+
+
+}
+*/
+
+
+
+impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
+    fn parallel_update_self(&mut self, delta_time: usize) {
+        let mut infected_remove = Vec::new();
+
+        for (pos, x) in self.get_infected().iter().enumerate() {
+
+            let person = & *x.read().expect("Should be able to get person");
+            if person.recovered() || person.dead() {
+                infected_remove.push(pos)
+            }
+        }
+
+        infected_remove.sort_by(|a, b| a.cmp(b).reverse());
+        for r in infected_remove {
+            self.infected.remove(r);
+        }
+
+        let mut full_remove = Vec::new();
+        for (pos, x) in self.get_everyone().iter().enumerate() {
+
+            let person = & *x.read().expect("Should be able to get person");
+            if person.dead() {
+                full_remove.push(pos)
+            }
+        }
+
+        full_remove.sort_by(|a, b| a.cmp(b).reverse());
+        for r in full_remove {
+            self.people.remove(r);
+            self.current_pop -= 1;
+        }
+
+    }
+
+    fn parallel_get_update_children(&mut self) -> Vec<&mut Arc<RwLock<Person>>> {
+        self.people.iter_mut().map(|arc| arc).collect()
     }
 }
 
@@ -457,7 +587,7 @@ mod test {
 
     use crate::game::{Age, Update};
     use crate::game::pathogen::Pathogen;
-    use crate::game::pathogen::symptoms::base::cheat::Undying;
+    use crate::game::pathogen::symptoms::base::cheat::{CustomFatality, Undying};
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
     use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution};
@@ -533,6 +663,40 @@ mod test {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
         assert!(pop.infect_one(&pathogen));
+    }
+
+    #[test]
+    fn healthy_population_doesnt_lose_health() {
+
+        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(10, 60));
+        let healths = pop.get_everyone().iter().map(|p| {
+            *p.read().unwrap().health_points().read().unwrap()
+        }).collect::<Vec<u32>>();
+
+        for _ in 0..1000 {
+            pop.update(20);
+        }
+
+        for (pos, person) in pop.get_everyone().iter().enumerate() {
+            let person = person.read().unwrap();
+            assert_eq!(*person.health_points().read().unwrap(), *healths.get(pos).unwrap(), "{:?} lost health", & *person);
+        }
+    }
+
+    #[test]
+    fn can_kill_a_person() {
+        let mut person_a = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
+        let mut p = Pathogen::default();
+        p.acquire_symptom(&CustomFatality(99.0).get_symptom(), None);
+        let mut pathogen = Arc::new(p);
+        assert!(person_a.infect(&pathogen));
+
+        while person_a.infected() {
+            person_a.update(20);
+        }
+
+        assert!(!person_a.recovered(), "Person should have not been able to recover before they died");
+        assert!(person_a.dead())
     }
 
 

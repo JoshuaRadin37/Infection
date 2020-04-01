@@ -10,7 +10,6 @@ mod community {
     use infection::game::Update;
 
     #[test]
-    #[ignore]
     fn community_transfer() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 120));
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
@@ -50,12 +49,11 @@ mod community {
 
 
     #[test]
-    #[ignore]
     fn community_recover() {
-        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 100, UniformDistribution::new(0, 120));
+        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
 
-        for _ in 0..100 {
+        for _ in 0..pop.get_total_population(){
             assert!(pop.infect_one(&pathogen));
         }
 
@@ -85,6 +83,39 @@ mod community {
 
     #[test]
     #[ignore]
+    fn community_recover_big_test() {
+        for i in 0..100 {
+            let mut pop = Population::new(&PersonBuilder::new(), 0.0, 100, UniformDistribution::new(0, 120));
+            let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
+
+            for _ in 0..pop.get_total_population() {
+                assert!(pop.infect_one(&pathogen));
+            }
+
+            let pop_arc = Arc::new(Mutex::new(pop));
+
+            let mut controller = InteractionController::new(&pop_arc);
+
+            let mut loops = 0;
+            let spread = loop {
+                {
+                    let mut mutex_guard = pop_arc.lock().expect("Should be able to get the mutex occasionally");
+                    let infected_count = mutex_guard.get_infected().len();
+                    if infected_count == 0 {
+                        break true;
+                    }
+
+                    mutex_guard.update(20);
+                }
+                controller.run();
+            };
+            assert!(spread, "Pathogen failed to die out");
+            assert!(!pop_arc.is_poisoned());
+            println!("Completed Run {}", i);
+        }
+    }
+
+    #[test]
     fn full_single_community_run() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 120));
         let mut pathogen = {

@@ -14,24 +14,6 @@ use infection::game::population::person_behavior::Controller;
 use infection::game::population::person_behavior::interaction::InteractionController;
 use infection::game::Update;
 
-fn interact(pop: usize, infected: usize) {
-    let mut pop = Population::new(&PersonBuilder::new(), 0.0, pop, UniformDistribution::new(0, 120));
-    let mut pathogen = Virus.create_pathogen("Test", 100);
-    pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
-
-    let pathogen = Arc::new(pathogen);
-    for _ in 0..infected {
-        pop.infect_one(&pathogen);
-    }
-
-    let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
-
-    controller.run();
-
-}
-
-
-
 fn interaction_100(c: &mut Criterion) {
 
 
@@ -50,7 +32,19 @@ fn interaction_100(c: &mut Criterion) {
             format!("p:{} i:{}", pop, size),
             size,
             |b, &size| {
-                b.iter(|| interact(pop, size))
+                let mut pop = Population::new(&PersonBuilder::new(), 0.0, pop, UniformDistribution::new(0, 120));
+                let mut pathogen = Virus.create_pathogen("Test", 100);
+                pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
+
+                let pathogen = Arc::new(pathogen);
+                for _ in 0..size{
+                    pop.infect_one(&pathogen);
+                }
+
+                let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
+
+
+                b.iter(|| controller.run())
             }
         );
     }
@@ -60,6 +54,7 @@ fn interaction_100(c: &mut Criterion) {
 }
 
 fn interaction_1000(c: &mut Criterion) {
+
 
 
     let pop = 1000;
@@ -77,7 +72,19 @@ fn interaction_1000(c: &mut Criterion) {
             format!("p:{} i:{}", pop, size),
             size,
             |b, &size| {
-                b.iter(|| interact(pop, size))
+                let mut pop = Population::new(&PersonBuilder::new(), 0.0, pop, UniformDistribution::new(0, 120));
+                let mut pathogen = Virus.create_pathogen("Test", 100);
+                pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
+
+                let pathogen = Arc::new(pathogen);
+                for _ in 0..size{
+                    pop.infect_one(&pathogen);
+                }
+
+                let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
+
+
+                b.iter(|| controller.run())
             }
         );
     }

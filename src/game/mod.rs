@@ -1,5 +1,7 @@
+use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Deref};
+use std::sync::{Arc, RwLock};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -24,20 +26,70 @@ pub static AIR_TRAVEL_TIME: f64 = 500.0;
 
 const TICKS_TO_GAME_MIN: usize = 20;
 
-pub trait Update {
+pub trait Update<T=Self> where T : Update<T> {
 
 
     fn update_self(&mut self, delta_time: usize);
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update>;
+    fn get_update_children(&mut self) -> Vec<&mut T> {
+        Vec::new()
+    }
 
     fn update(&mut self, delta_time: usize) {
         self.update_self(delta_time);
-        for child in self.get_update_children().par_iter() {
+        for child in self.get_update_children() {
             child.update(delta_time);
         }
     }
 
 
+
+}
+
+impl <T> Update for Arc<RwLock<T>> where T : Update<T> {
+    fn update_self(&mut self, delta_time: usize) {
+        self.write().unwrap().update_self(delta_time)
+    }
+}
+
+
+impl <T> Update for RwLock<T> where T : Update<T> {
+    fn update_self(&mut self, delta_time: usize) {
+        self.write().unwrap().update_self(delta_time)
+    }
+}
+
+impl <T, R> Update<R> for T where R : Send + Update<R>,
+T : ParallelUpdate<R> {
+    fn update_self(&mut self, delta_time: usize) {
+        ParallelUpdate::parallel_update_self(self, delta_time)
+    }
+
+    fn get_update_children(&mut self) -> Vec<&mut R> {
+        self.parallel_get_update_children()
+    }
+
+
+    fn update(&mut self, delta_time: usize) {
+        ParallelUpdate::parallel_update(self, delta_time)
+    }
+}
+
+const USE_PARALLEL: bool = true;
+
+pub trait ParallelUpdate<T=Self>
+    where T : Send + Update<T> {
+
+    fn parallel_update_self(&mut self, delta_time: usize);
+    fn parallel_get_update_children(&mut self) -> Vec<&mut T> {
+        Vec::new()
+    }
+
+    fn parallel_update(&mut self, delta_time: usize) {
+        self.parallel_update_self(delta_time);
+        self.parallel_get_update_children().par_iter_mut().for_each(
+            |child| child.update(delta_time)
+        )
+    }
 }
 
 /// forces time passed to be at minimum one game minute
@@ -129,9 +181,7 @@ impl Update for Age {
         //self.add_assign();
     }
 
-    fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-        Vec::new()
-    }
+
 }
 
 
@@ -165,8 +215,8 @@ mod test {
             self.0 += 1;
         }
 
-        fn get_update_children(&mut self) -> Vec<&mut dyn Update> {
-            let mut output: Vec<&mut dyn Update> = Vec::new();
+        fn get_update_children(&mut self) -> Vec<&mut Self> {
+            let mut output: Vec<&mut Self> = Vec::new();
             if let Some((ref mut left, ref mut right)) = *self.1 {
                 output.push(left);
                 output.push(right);
