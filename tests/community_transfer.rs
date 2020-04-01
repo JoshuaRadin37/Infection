@@ -219,11 +219,28 @@ mod community {
     fn full_single_community_run_with_severity_and_deadly() {
         let mut pop = Population::new(&PersonBuilder::new(), 0.0, 10000, UniformDistribution::new(0, 60));
         let mut pathogen = Pathogen::default();
+        pathogen.acquire_symptom(&CustomSeverity(83.0).get_symptom(), None);
+        // pathogen.acquire_symptom(&CustomSeverity(75.0).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomDuration(0.3).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomSpread(0.3).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomFatality(0.4).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomCatchChance(0.7).get_symptom(), None);
+
+        let pathogen = Arc::new(pathogen);
+
+        run_pop(pop, &pathogen);
+    }
+
+    #[test]
+    #[ignore]
+    fn full_big_community_run_with_severity_and_deadly() {
+        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 100_000, UniformDistribution::new(0, 60));
+        let mut pathogen = Pathogen::default();
         pathogen.acquire_symptom(&CustomSeverity(87.0).get_symptom(), None);
         // pathogen.acquire_symptom(&CustomSeverity(75.0).get_symptom(), None);
         pathogen.acquire_symptom(&CustomDuration(0.3).get_symptom(), None);
         pathogen.acquire_symptom(&CustomSpread(0.3).get_symptom(), None);
-        pathogen.acquire_symptom(&CustomFatality(2.0).get_symptom(), None);
+        pathogen.acquire_symptom(&CustomFatality(1.7).get_symptom(), None);
         pathogen.acquire_symptom(&CustomCatchChance(1.0).get_symptom(), None);
 
         let pathogen = Arc::new(pathogen);
