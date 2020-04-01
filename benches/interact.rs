@@ -15,8 +15,6 @@ use infection::game::population::person_behavior::interaction::InteractionContro
 use infection::game::Update;
 
 fn interaction_100(c: &mut Criterion) {
-
-
     let pop = 100;
 
     let mut group = c.benchmark_group(format!("infected {}", pop));
@@ -25,38 +23,31 @@ fn interaction_100(c: &mut Criterion) {
         sizes.push(pop * i / 10);
     }
 
-
     for size in sizes.as_slice() {
         group.throughput(Throughput::Elements(*size as u64));
-        group.bench_with_input(
-            format!("p:{} i:{}", pop, size),
-            size,
-            |b, &size| {
-                let mut pop = Population::new(&PersonBuilder::new(), 0.0, pop, UniformDistribution::new(0, 120));
-                let mut pathogen = Virus.create_pathogen("Test", 100);
-                pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
+        group.bench_with_input(format!("p:{} i:{}", pop, size), size, |b, &size| {
+            let mut pop = Population::new(
+                &PersonBuilder::new(),
+                0.0,
+                pop,
+                UniformDistribution::new(0, 120),
+            );
+            let mut pathogen = Virus.create_pathogen("Test", 100);
+            pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
 
-                let pathogen = Arc::new(pathogen);
-                for _ in 0..size{
-                    pop.infect_one(&pathogen);
-                }
-
-                let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
-
-
-                b.iter(|| controller.run())
+            let pathogen = Arc::new(pathogen);
+            for _ in 0..size {
+                pop.infect_one(&pathogen);
             }
-        );
+
+            let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
+
+            b.iter(|| controller.run())
+        });
     }
-
-
-
 }
 
 fn interaction_1000(c: &mut Criterion) {
-
-
-
     let pop = 1000;
 
     let mut group = c.benchmark_group(format!("infected {}", pop));
@@ -65,32 +56,28 @@ fn interaction_1000(c: &mut Criterion) {
         sizes.push(pop * i / 10);
     }
 
-
     for size in sizes.as_slice() {
         group.throughput(Throughput::Elements(*size as u64));
-        group.bench_with_input(
-            format!("p:{} i:{}", pop, size),
-            size,
-            |b, &size| {
-                let mut pop = Population::new(&PersonBuilder::new(), 0.0, pop, UniformDistribution::new(0, 120));
-                let mut pathogen = Virus.create_pathogen("Test", 100);
-                pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
+        group.bench_with_input(format!("p:{} i:{}", pop, size), size, |b, &size| {
+            let mut pop = Population::new(
+                &PersonBuilder::new(),
+                0.0,
+                pop,
+                UniformDistribution::new(0, 120),
+            );
+            let mut pathogen = Virus.create_pathogen("Test", 100);
+            pathogen.acquire_symptom(&NoSpread.get_symptom(), None); // Disable spread
 
-                let pathogen = Arc::new(pathogen);
-                for _ in 0..size{
-                    pop.infect_one(&pathogen);
-                }
-
-                let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
-
-
-                b.iter(|| controller.run())
+            let pathogen = Arc::new(pathogen);
+            for _ in 0..size {
+                pop.infect_one(&pathogen);
             }
-        );
+
+            let mut controller = InteractionController::new(&Arc::new(Mutex::new(pop)));
+
+            b.iter(|| controller.run())
+        });
     }
-
-
-
 }
 
 criterion_group!(interact_benches, interaction_100, interaction_1000);

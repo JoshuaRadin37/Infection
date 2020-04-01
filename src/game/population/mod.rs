@@ -22,11 +22,11 @@ use crate::game::population::Sex::{Female, Male};
 
 pub mod person_behavior;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Condition {
     Normal,
     NeedsHospital,
-    Hospitalized
+    Hospitalized,
 }
 
 #[derive(Debug)]
@@ -42,14 +42,11 @@ trait HealthModifier {
 impl HealthModifier for Sex {
     fn get_health_modification_factor(&self) -> f64 {
         match self {
-            Sex::Male => { 0.95 }
-            Sex::Female => { 1.0 }
+            Sex::Male => 0.95,
+            Sex::Female => 1.0,
         }
     }
 }
-
-
-
 
 ///
 /// The most basic component of the simulation
@@ -74,19 +71,26 @@ impl Display for Person {
 
 impl Debug for Person {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "Person {} {{ age: {:?}, sex: {:?}, prex: {:?}, hp: {:?}, infected: {:?}}}", self.id, self.age.lock().unwrap().0.format("{:y}y {:m(12m)}m"), self.sex, self.pre_existing_condition, self.health_points, self.infected())
+        write!(
+            f,
+            "Person {} {{ age: {:?}, sex: {:?}, prex: {:?}, hp: {:?}, infected: {:?}}}",
+            self.id,
+            self.age.lock().unwrap().0.format("{:y}y {:m(12m)}m"),
+            self.sex,
+            self.pre_existing_condition,
+            self.health_points,
+            self.infected()
+        )
     }
 }
 
-
-
 impl Person {
-    pub(crate) fn new(
-        id: usize,
-        age: Age,
-        sex: Sex,
-        pre_existing_condition: f64) -> Self {
-        let health = Self::max_health(usize::from(age.time_unit().as_years()) as u8, &sex, pre_existing_condition);
+    pub(crate) fn new(id: usize, age: Age, sex: Sex, pre_existing_condition: f64) -> Self {
+        let health = Self::max_health(
+            usize::from(age.time_unit().as_years()) as u8,
+            &sex,
+            pre_existing_condition,
+        );
 
         Person {
             id,
@@ -97,26 +101,20 @@ impl Person {
             condition: Mutex::new(Normal),
             modifiers: Mutex::new(Vec::new()),
             infection: Mutex::new(None),
-            recovered_status: RwLock::new(false)
+            recovered_status: RwLock::new(false),
         }
     }
 
     /// Determines the maximum health for a person depending on a few conditions
     fn max_health(age: u8, sex: &Sex, pre_existing_condition: f64) -> u32 {
         ((match age {
-            0..=3 => {
-                30.0
-            }
-            4..=9 => {
-                70.0
-            }
-            10..=19 => {
-                100.0
-            }
-            age => {
-                10.0 * (-(age as i16) as f64 + 120.0).sqrt()
-            }
-        }) * 10.0 * sex.get_health_modification_factor() * pre_existing_condition) as u32
+            0..=3 => 30.0,
+            4..=9 => 70.0,
+            10..=19 => 100.0,
+            age => 10.0 * (-(age as i16) as f64 + 120.0).sqrt(),
+        }) * 10.0
+            * sex.get_health_modification_factor()
+            * pre_existing_condition) as u32
     }
 
     pub fn condition(&self) -> f64 {
@@ -144,10 +142,8 @@ impl Person {
             return false;
         }
         match &*self.infection.lock().unwrap() {
-            None => { false }
-            Some(i) => {
-                !i.recovered()
-            }
+            None => false,
+            Some(i) => !i.recovered(),
         }
     }
 
@@ -160,7 +156,7 @@ impl Person {
 
     /// Removes the immunity from someone
     pub fn remove_immunity(&mut self) {
-        if self.recovered() && self.infection.lock().unwrap().is_some(){
+        if self.recovered() && self.infection.lock().unwrap().is_some() {
             *self.infection.lock().unwrap() = None;
             *self.recovered_status.write().unwrap() = false;
         }
@@ -168,13 +164,13 @@ impl Person {
 
     pub fn infect(&mut self, pathogen: &Arc<Pathogen>) -> bool {
         if self.infection.lock().unwrap().is_none() {
-            *self.infection.lock().unwrap() = Some(Infection::new(pathogen.clone(), self.condition()));
+            *self.infection.lock().unwrap() =
+                Some(Infection::new(pathogen.clone(), self.condition()));
             true
         } else {
             false
         }
     }
-
 
     /// Perform an interaction with another person
     ///
@@ -194,7 +190,6 @@ impl Person {
                     }
                 }
             }
-
         }
         false
     }
@@ -202,7 +197,6 @@ impl Person {
     fn get_age_years(&self) -> u8 {
         usize::from(self.age.lock().unwrap().0.as_years()) as u8
     }
-
 }
 
 impl PartialEq for Person {
@@ -214,20 +208,23 @@ impl PartialEq for Person {
 impl Update for Person {
     fn update_self(&mut self, delta_time: usize) {
         {
-            match &mut *self.infection.lock().unwrap() { // update infection
-                None => {},
+            match &mut *self.infection.lock().unwrap() {
+                // update infection
+                None => {}
                 Some(i) => {
                     i.update(delta_time);
-                },
+                }
             }
         }
 
-        { // update age
+        {
+            // update age
             let mut age_guard = self.age.lock().unwrap();
             *age_guard += tick_to_game_time_conversion(delta_time);
         }
 
-        if !self.recovered() { // update recover status
+        if !self.recovered() {
+            // update recover status
             let infection_recovered = {
                 let guard1 = &*self.infection.lock().unwrap();
                 if let Some(i) = guard1 {
@@ -244,10 +241,10 @@ impl Update for Person {
                 let guard = (&*lock.unwrap()).clone();
                 {
                     match guard {
-                        None => {},
+                        None => {}
                         Some(i) => {
                             i.get_pathogen().perform_recovery(self);
-                        },
+                        }
                     }
                 }
             }
@@ -255,10 +252,10 @@ impl Update for Person {
 
         // update health points and condition
         {
-
             let max_health = {
                 let mut hp_guard = self.health_points.write().unwrap();
-                let max_health = Self::max_health(self.get_age_years(), &self.sex, self.pre_existing_condition);
+                let max_health =
+                    Self::max_health(self.get_age_years(), &self.sex, self.pre_existing_condition);
 
                 if max_health < *hp_guard {
                     *hp_guard = max_health;
@@ -271,76 +268,60 @@ impl Update for Person {
                 let mut rate = 1.0;
                 let get_hurt = {
                     // remove infection mutex as fast as possible
-                    match & *self.infection.lock().unwrap() {
-                        None => { panic!("Infection must exist")},
+                    match &*self.infection.lock().unwrap() {
+                        None => panic!("Infection must exist"),
                         Some(i) => {
                             if !i.active_case() {
                                 false
-                            }else {
-                                rate = 1.0 / ( 1.0 - i.get_pathogen().severity());
+                            } else {
+                                rate = 1.0 / (1.0 - i.get_pathogen().severity());
                                 roll(i.get_pathogen().fatality())
                             }
-                        },
+                        }
                     }
-
                 };
 
                 if get_hurt {
                     let change = &mut *self.condition.lock().unwrap();
                     let mut hp_guard = self.health_points.write().unwrap();
-                    *hp_guard -= u32::min(*hp_guard,
-                                          ((match change {
-                        Condition::Normal => { 1.0 },
-                        Condition::NeedsHospital => { 3.0 },
-                        Condition::Hospitalized => { 2.0 } })  * rate) as u32
+                    *hp_guard -= u32::min(
+                        *hp_guard,
+                        ((match change {
+                            Condition::Normal => 1.0,
+                            Condition::NeedsHospital => 3.0,
+                            Condition::Hospitalized => 2.0,
+                        }) * rate) as u32,
                     );
 
-
-                    match *hp_guard {
-                        hp if hp < max_health / 4 => {
-                            *change = Condition::NeedsHospital;
-                        },
-                        _ => {}
+                    if *change == Condition::Normal {
+                        match *hp_guard {
+                            hp if hp < max_health / 4 => {
+                                *change = Condition::NeedsHospital;
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
         }
-
-
     }
-
 }
 
-
-
-
-
 pub struct PersonBuilder {
-    count: usize
+    count: usize,
 }
 
 impl PersonBuilder {
     pub fn new() -> Arc<Mutex<PersonBuilder>> {
-        Arc::new(Mutex::new(Self {
-            count: 0
-        }))
+        Arc::new(Mutex::new(Self { count: 0 }))
     }
 
-    fn create_person(&mut self,
-                     age: Age,
-                     sex: Sex,
-                     pre_existing_condition: f64) -> Person {
+    fn create_person(&mut self, age: Age, sex: Sex, pre_existing_condition: f64) -> Person {
         let id = self.count;
         self.count += 1;
-        Person::new(
-            id,
-            age,
-            sex,
-            pre_existing_condition
-        )
+        Person::new(id, age, sex, pre_existing_condition)
     }
 }
-
 
 pub struct Population {
     factory: Arc<Mutex<PersonBuilder>>,
@@ -359,37 +340,43 @@ pub trait PopulationDistribution {
     fn get_percent_of_pop(&self, age: usize) -> f64;
 }
 
-impl <F> PopulationDistribution for F where F : Fn(usize) -> f64 {
+impl<F> PopulationDistribution for F
+where
+    F: Fn(usize) -> f64,
+{
     fn get_percent_of_pop(&self, age: usize) -> f64 {
         self(age)
     }
 }
 
-
 impl Population {
-    pub fn new<T : PopulationDistribution>(builder: &Arc<Mutex<PersonBuilder>>, growth_rate: f64, population: usize, population_distribution: T) -> Self {
+    pub fn new<T: PopulationDistribution>(
+        builder: &Arc<Mutex<PersonBuilder>>,
+        growth_rate: f64,
+        population: usize,
+        population_distribution: T,
+    ) -> Self {
         let mut pop = Vec::new();
         let mut people_created = 0;
         let mut rng = rand::thread_rng();
 
         for age in 0..121 {
-            let people_count  = (population as f64 * population_distribution.get_percent_of_pop(age)) as usize;
+            let people_count =
+                (population as f64 * population_distribution.get_percent_of_pop(age)) as usize;
             for _ in 0..people_count {
                 let mut builder_guard = builder.lock().unwrap();
-                pop.push(
-                    Arc::new(RwLock::new(
-                        builder_guard.create_person(
-                            Age::new(age as u16,
-                                     rng.gen_range::<usize, usize, usize>(0, 12),
-                                     rng.gen_range::<usize, usize, usize>(0, 28)),
-                            if rng.gen_bool(0.5) { Male } else { Female },
-                            match rng.gen_range::<f64, f64, f64>(30.0, 200.0) {
-                                i if i < 100.0 => { i },
-                                i => { 100.0 }
-                            } / 100.0
-                        )
-                    ))
-                );
+                pop.push(Arc::new(RwLock::new(builder_guard.create_person(
+                    Age::new(
+                        age as u16,
+                        rng.gen_range::<usize, usize, usize>(0, 12),
+                        rng.gen_range::<usize, usize, usize>(0, 28),
+                    ),
+                    if rng.gen_bool(0.5) { Male } else { Female },
+                    match rng.gen_range::<f64, f64, f64>(30.0, 200.0) {
+                        i if i < 100.0 => i,
+                        i => 100.0,
+                    } / 100.0,
+                ))));
                 people_created += 1;
                 if people_created == population {
                     break;
@@ -399,19 +386,13 @@ impl Population {
 
         while people_created < population {
             let mut builder_guard = builder.lock().unwrap();
-            pop.push(
-                Arc::new(RwLock::new(
-                    builder_guard.create_person(
-                        Age::new(0, 0, 0),
-                        if rng.gen_bool(0.5) { Male} else { Female},
-                        1.0
-                    )
-                ))
-            );
+            pop.push(Arc::new(RwLock::new(builder_guard.create_person(
+                Age::new(0, 0, 0),
+                if rng.gen_bool(0.5) { Male } else { Female },
+                1.0,
+            ))));
             people_created += 1;
         }
-
-
 
         Population {
             factory: builder.clone(),
@@ -419,17 +400,19 @@ impl Population {
             original_pop: population,
             current_pop: population,
             infected: Vec::new(),
-            growth_rate
+            growth_rate,
         }
     }
 
-
     /// gets the count of people who are either infected or recovered
     pub fn get_all_ever_infected(&self) -> usize {
-        self.get_everyone().iter().filter(|p| {
-            let person = & *p.read().unwrap();
-            person.recovered() || person.infected()
-        }).count()
+        self.get_everyone()
+            .iter()
+            .filter(|p| {
+                let person = &*p.read().unwrap();
+                person.recovered() || person.infected()
+            })
+            .count()
     }
 
     pub fn infect_one(&mut self, pathogen: &Arc<Pathogen>) -> bool {
@@ -455,12 +438,13 @@ impl Population {
     }
 
     pub fn remove_infected(&mut self, person: &Arc<RwLock<Person>>) -> Option<Arc<RwLock<Person>>> {
-        let position = self.infected.iter().position(|p| p.read().unwrap().id == person.read().unwrap().id);
+        let position = self
+            .infected
+            .iter()
+            .position(|p| p.read().unwrap().id == person.read().unwrap().id);
         match position {
-            None => { None },
-            Some(index) => {
-                Some(self.infected.remove(index))
-            },
+            None => None,
+            Some(index) => Some(self.infected.remove(index)),
         }
     }
 
@@ -480,45 +464,12 @@ impl Population {
         self.original_pop
     }
 
-    pub fn age_a_year(&mut self)  {
+    pub fn age_a_year(&mut self) {
         for _ in 0..1200 {
             self.update(438);
         }
     }
 }
-
-/*
-impl Update for Population {
-    fn update_self(&mut self, delta_time: usize) {
-        let mut remove = Vec::new();
-        for x in self.get_infected() {
-            {
-                let person = &mut *x.write().expect("Should be able to get person");
-                person.update(delta_time);
-            }
-            {
-                let person = & *x.read().expect("Should be able to get person");
-                if person.recovered() {
-                    let index = self.infected.iter().position(|p| &*p.read().unwrap() == person);
-                    if let Some(index) = index {
-                        remove.push(index);
-                    }
-                }
-            }
-        }
-
-        remove.sort_by(|a, b| a.cmp(b).reverse());
-        for r in remove {
-            let recovered = self.infected.remove(r);
-            // println!("Removed recovered {:?}", recovered);
-        }
-    }
-
-
-
-}
-*/
-
 
 
 impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
@@ -526,8 +477,7 @@ impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
         let mut infected_remove = Vec::new();
 
         for (pos, x) in self.get_infected().iter().enumerate() {
-
-            let person = & *x.read().expect("Should be able to get person");
+            let person = &*x.read().expect("Should be able to get person");
             if person.recovered() || person.dead() {
                 infected_remove.push(pos)
             }
@@ -540,8 +490,7 @@ impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
 
         let mut full_remove = Vec::new();
         for (pos, x) in self.get_everyone().iter().enumerate() {
-
-            let person = & *x.read().expect("Should be able to get person");
+            let person = &*x.read().expect("Should be able to get person");
             if person.dead() {
                 full_remove.push(pos)
             }
@@ -552,7 +501,6 @@ impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
             self.people.remove(r);
             self.current_pop -= 1;
         }
-
     }
 
     fn parallel_get_update_children(&mut self) -> Vec<&mut Arc<RwLock<Person>>> {
@@ -560,13 +508,14 @@ impl ParallelUpdate<Arc<RwLock<Person>>> for Population {
     }
 }
 
-pub struct UniformDistribution { min_age: usize, max_age: usize}
+pub struct UniformDistribution {
+    min_age: usize,
+    max_age: usize,
+}
 
 impl UniformDistribution {
     pub fn new(min_age: usize, max_age: usize) -> Self {
-        Self {
-            min_age, max_age
-        }
+        Self { min_age, max_age }
     }
 }
 
@@ -577,10 +526,8 @@ impl PopulationDistribution for UniformDistribution {
         } else {
             1.0 / (self.max_age - self.min_age) as f64
         }
-
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -595,7 +542,9 @@ mod test {
     use crate::game::pathogen::symptoms::base::cheat::{CustomFatality, Undying};
     use crate::game::pathogen::symptoms::Symp;
     use crate::game::pathogen::types::{PathogenType, Virus};
-    use crate::game::population::{Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution};
+    use crate::game::population::{
+        Person, PersonBuilder, Population, PopulationDistribution, UniformDistribution,
+    };
     use crate::game::population::Sex::Male;
 
     #[test]
@@ -603,9 +552,7 @@ mod test {
         let mut person_a = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
         let mut person_b = Person::new(1, Age::new(17, 0, 0), Male, 1.00);
         let mut p = Virus.create_pathogen("Test", 100);
-        p.acquire_symptom(
-            &Undying.get_symptom(), None
-        );
+        p.acquire_symptom(&Undying.get_symptom(), None);
         let pathogen = Arc::new(p);
 
         person_a.infect(&pathogen);
@@ -639,16 +586,23 @@ mod test {
                         g.push(people.clone())
                     }
                 }
-            }
-            ));
+            }));
         }
 
         for handle in handles {
             handle.join().unwrap();
         }
 
-        let vector = vec.lock().expect("Should be able to access the Vector as all threads have been waited").to_owned();
-        assert_eq!(vector.len(), 1000, "1000 people should have been created concurrently, but {} was instead", vector.len());
+        let vector = vec
+            .lock()
+            .expect("Should be able to access the Vector as all threads have been waited")
+            .to_owned();
+        assert_eq!(
+            vector.len(),
+            1000,
+            "1000 people should have been created concurrently, but {} was instead",
+            vector.len()
+        );
         let mut found = [false; 1000];
         let mut ids = 0;
         for person in &vector {
@@ -660,23 +614,39 @@ mod test {
                 // panic!("Duplicate ID found: {}", id);
             }
         }
-        assert_eq!(ids, vector.len(), "There should be 1000 unique IDS, but {} were created", ids);
+        assert_eq!(
+            ids,
+            vector.len(),
+            "There should be 1000 unique IDS, but {} were created",
+            ids
+        );
     }
 
     #[test]
     fn can_infect_a_population() {
-        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(0, 120));
+        let mut pop = Population::new(
+            &PersonBuilder::new(),
+            0.0,
+            1000,
+            UniformDistribution::new(0, 120),
+        );
         let mut pathogen = Arc::new(Virus.create_pathogen("Test", 100));
         assert!(pop.infect_one(&pathogen));
     }
 
     #[test]
     fn healthy_population_doesnt_lose_health() {
-
-        let mut pop = Population::new(&PersonBuilder::new(), 0.0, 1000, UniformDistribution::new(10, 60));
-        let healths = pop.get_everyone().iter().map(|p| {
-            *p.read().unwrap().health_points().read().unwrap()
-        }).collect::<Vec<u32>>();
+        let mut pop = Population::new(
+            &PersonBuilder::new(),
+            0.0,
+            1000,
+            UniformDistribution::new(10, 60),
+        );
+        let healths = pop
+            .get_everyone()
+            .iter()
+            .map(|p| *p.read().unwrap().health_points().read().unwrap())
+            .collect::<Vec<u32>>();
 
         for _ in 0..1000 {
             pop.update(20);
@@ -684,7 +654,12 @@ mod test {
 
         for (pos, person) in pop.get_everyone().iter().enumerate() {
             let person = person.read().unwrap();
-            assert_eq!(*person.health_points().read().unwrap(), *healths.get(pos).unwrap(), "{:?} lost health", & *person);
+            assert_eq!(
+                *person.health_points().read().unwrap(),
+                *healths.get(pos).unwrap(),
+                "{:?} lost health",
+                &*person
+            );
         }
     }
 
@@ -700,9 +675,10 @@ mod test {
             person_a.update(20);
         }
 
-        assert!(!person_a.recovered(), "Person should have not been able to recover before they died");
+        assert!(
+            !person_a.recovered(),
+            "Person should have not been able to recover before they died"
+        );
         assert!(person_a.dead())
     }
-
-
 }

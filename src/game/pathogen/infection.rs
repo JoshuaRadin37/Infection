@@ -13,21 +13,28 @@ use crate::game::pathogen::Pathogen;
 #[derive(Clone)]
 pub struct Infection {
     pathogen: Arc<Pathogen>, // pathogen
-    infection_age: Age, // age of the infection
+    infection_age: Age,      // age of the infection
     predetermined_duration: TimeUnit,
     pathogen_count: usize,
-    recovered: bool // if the person has recovered
+    recovered: bool, // if the person has recovered
 }
 
 impl Infection {
-
     pub fn new(pathogen: Arc<Pathogen>, condition: f64) -> Self {
         if pathogen.average_recovery_time() <= pathogen.base_recovery_distance() {
-            panic!("Pathogen recovery range {} is greater than the average recovery time {}", pathogen.base_recovery_distance(),  pathogen.average_recovery_time());
+            panic!(
+                "Pathogen recovery range {} is greater than the average recovery time {}",
+                pathogen.base_recovery_distance(),
+                pathogen.average_recovery_time()
+            );
         }
-        let min_duration = usize::max(0, pathogen.average_recovery_time() - (pathogen.base_recovery_distance() as f64 * condition.powi(2)) as usize);
-        let max_duration = pathogen.average_recovery_time() + (pathogen.base_recovery_distance() as f64 / condition) as usize;
-
+        let min_duration = usize::max(
+            0,
+            pathogen.average_recovery_time()
+                - (pathogen.base_recovery_distance() as f64 * condition.powi(2)) as usize,
+        );
+        let max_duration = pathogen.average_recovery_time()
+            + (pathogen.base_recovery_distance() as f64 / condition) as usize;
 
         let duration = if min_duration == max_duration {
             Minutes(min_duration)
@@ -36,10 +43,10 @@ impl Infection {
         };
         Infection {
             pathogen,
-            infection_age: Age::new(0, 0 ,0),
+            infection_age: Age::new(0, 0, 0),
             predetermined_duration: duration,
             pathogen_count: 100,
-            recovered: false
+            recovered: false,
         }
     }
 
@@ -50,7 +57,6 @@ impl Infection {
     pub fn active_case(&self) -> bool {
         !self.recovered && self.pathogen_count > self.pathogen.min_count_for_symptoms
     }
-
 
     pub fn recovered(&self) -> bool {
         self.recovered
@@ -73,13 +79,13 @@ impl Update for Infection {
         self.infection_age += time_passed;
         if self.pathogen_count < self.pathogen.min_count_for_symptoms {
             if roll(self.pathogen.internal_spread_rate) {
-                self.pathogen_count += (rand::thread_rng().gen_range::<f64, f64, f64>(0.2, 1.02) * self.pathogen_count as f64) as usize;
+                self.pathogen_count += (rand::thread_rng().gen_range::<f64, f64, f64>(0.2, 1.02)
+                    * self.pathogen_count as f64) as usize;
             }
         } else {
             self.attempt_recover();
         }
     }
-
 }
 
 #[cfg(test)]

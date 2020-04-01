@@ -12,10 +12,8 @@ use crate::game::pathogen::symptoms::{Symp, Symptom, SymptomMap, SymptomMapBuild
 use crate::game::pathogen::symptoms::base::{Cough, RunnyNose};
 
 pub trait PathogenType {
-
     /// Gets the prefix of the Pathogen Type
     fn get_prefix(&self) -> &str;
-
 
     fn get_min_count(&self) -> usize;
     fn get_mutativity(&self) -> f64;
@@ -27,14 +25,15 @@ pub trait PathogenType {
         let fixed_name = format!("{} {}", self.get_prefix(), name);
         let (graph, set) = self.get_symptoms_map();
 
-        let mut pathogen = Pathogen::new(fixed_name,
-                                         self.get_min_count(),
-                                         self.get_mutativity(),
-                                         usize::from(self.get_average_duration().into_minutes()),
-                                         usize::from(self.get_duration_spread().into_minutes()),
-                                         graph,
-                                         set);
-
+        let mut pathogen = Pathogen::new(
+            fixed_name,
+            self.get_min_count(),
+            self.get_mutativity(),
+            usize::from(self.get_average_duration().into_minutes()),
+            usize::from(self.get_duration_spread().into_minutes()),
+            graph,
+            set,
+        );
 
         for _ in 0..mutation_ticks {
             pathogen = pathogen.mutate()
@@ -47,7 +46,6 @@ pub trait PathogenType {
         self.create_pathogen("Default", 0)
     }
 }
-
 
 pub struct Virus;
 
@@ -72,14 +70,14 @@ impl PathogenType for Virus {
         Days(3)
     }
 
-
     fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>) {
         let mut builder = SymptomMapBuilder::new();
         let mut set = HashSet::new();
 
         let mut builder_entry = builder.add(RunnyNose.get_symptom());
         set.insert(builder_entry.node());
-        builder_entry.next_symptom(Cough(1).get_symptom(), 0.5)
+        builder_entry
+            .next_symptom(Cough(1).get_symptom(), 0.5)
             .next_symptom(Cough(2).get_symptom(), 0.02)
             .next_symptom(Cough(3).get_symptom(), 0.01);
 
@@ -116,8 +114,18 @@ mod test {
             times.push(recover_time);
         }
         let avg_time = sum_time / ATTEMPTS;
-        assert!(avg_time.as_days() >= min && avg_time.as_days() < max, "Aiming for default recover time to be between {} and {} days, instead {} ({} minutes)", min, max, avg_time.format("{:d}"), avg_time);
-        println!("Average recovery time = {}", avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m"));
+        assert!(
+            avg_time.as_days() >= min && avg_time.as_days() < max,
+            "Aiming for default recover time to be between {} and {} days, instead {} ({} minutes)",
+            min,
+            max,
+            avg_time.format("{:d}"),
+            avg_time
+        );
+        println!(
+            "Average recovery time = {}",
+            avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m")
+        );
     }
 
     #[test]
@@ -129,9 +137,6 @@ mod test {
 
     #[test]
     fn mutation_works() {
-
         let pathogen = Virus.create_pathogen("Test", 100);
-
-
     }
 }

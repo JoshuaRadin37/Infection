@@ -6,27 +6,21 @@ use crate::game::{AIR_TRAVEL_TIME, LAND_TRAVEL_TIME, SEA_TRAVEL_TIME};
 
 pub struct Chunk {
     population: usize,
-    size: f64
+    size: f64,
 }
 
 pub enum Adjacency {
     Land(f64),
     Water(f64),
-    Air(f64)
+    Air(f64),
 }
 
 impl Adjacency {
     pub fn get_travel_time(&self) -> f64 {
         match self {
-            Adjacency::Land(d) => {
-                d * LAND_TRAVEL_TIME
-            },
-            Adjacency::Water(d) => {
-                d * SEA_TRAVEL_TIME
-            },
-            Adjacency::Air(d) => {
-                d * AIR_TRAVEL_TIME
-            },
+            Adjacency::Land(d) => d * LAND_TRAVEL_TIME,
+            Adjacency::Water(d) => d * SEA_TRAVEL_TIME,
+            Adjacency::Air(d) => d * AIR_TRAVEL_TIME,
         }
     }
 }
@@ -37,7 +31,6 @@ impl PartialOrd for Adjacency {
     }
 }
 
-
 impl PartialEq for Adjacency {
     fn eq(&self, other: &Self) -> bool {
         self.get_travel_time() == other.get_travel_time()
@@ -46,5 +39,4 @@ impl PartialEq for Adjacency {
 
 pub struct GameBoard {
     chunk_graph: Graph<usize, Adjacency, Chunk>,
-
 }

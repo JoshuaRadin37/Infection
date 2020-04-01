@@ -14,11 +14,10 @@ use structure::time::TimeUnit::{Days, Months, Years};
 use crate::game;
 
 pub mod board;
-pub mod population;
+pub mod doctors;
 pub mod pathogen;
 pub mod playable;
-pub mod doctors;
-
+pub mod population;
 
 pub static LAND_TRAVEL_TIME: f64 = 45.0;
 pub static SEA_TRAVEL_TIME: f64 = 100.0;
@@ -26,9 +25,10 @@ pub static AIR_TRAVEL_TIME: f64 = 500.0;
 
 const TICKS_TO_GAME_MIN: usize = 20;
 
-pub trait Update<T=Self> where T : Update<T> {
-
-
+pub trait Update<T = Self>
+where
+    T: Update<T>,
+{
     fn update_self(&mut self, delta_time: usize);
     fn get_update_children(&mut self) -> Vec<&mut T> {
         Vec::new()
@@ -40,26 +40,31 @@ pub trait Update<T=Self> where T : Update<T> {
             child.update(delta_time);
         }
     }
-
-
-
 }
 
-impl <T> Update for Arc<RwLock<T>> where T : Update<T> {
+impl<T> Update for Arc<RwLock<T>>
+where
+    T: Update<T>,
+{
     fn update_self(&mut self, delta_time: usize) {
         self.write().unwrap().update_self(delta_time)
     }
 }
 
-
-impl <T> Update for RwLock<T> where T : Update<T> {
+impl<T> Update for RwLock<T>
+where
+    T: Update<T>,
+{
     fn update_self(&mut self, delta_time: usize) {
         self.write().unwrap().update_self(delta_time)
     }
 }
 
-impl <T, R> Update<R> for T where R : Send + Update<R>,
-T : ParallelUpdate<R> {
+impl<T, R> Update<R> for T
+where
+    R: Send + Update<R>,
+    T: ParallelUpdate<R>,
+{
     fn update_self(&mut self, delta_time: usize) {
         ParallelUpdate::parallel_update_self(self, delta_time)
     }
@@ -68,7 +73,6 @@ T : ParallelUpdate<R> {
         self.parallel_get_update_children()
     }
 
-
     fn update(&mut self, delta_time: usize) {
         ParallelUpdate::parallel_update(self, delta_time)
     }
@@ -76,9 +80,10 @@ T : ParallelUpdate<R> {
 
 const USE_PARALLEL: bool = true;
 
-pub trait ParallelUpdate<T=Self>
-    where T : Send + Update<T> {
-
+pub trait ParallelUpdate<T = Self>
+where
+    T: Send + Update<T>,
+{
     fn parallel_update_self(&mut self, delta_time: usize);
     fn parallel_get_update_children(&mut self) -> Vec<&mut T> {
         Vec::new()
@@ -86,9 +91,9 @@ pub trait ParallelUpdate<T=Self>
 
     fn parallel_update(&mut self, delta_time: usize) {
         self.parallel_update_self(delta_time);
-        self.parallel_get_update_children().par_iter_mut().for_each(
-            |child| child.update(delta_time)
-        )
+        self.parallel_get_update_children()
+            .par_iter_mut()
+            .for_each(|child| child.update(delta_time))
     }
 }
 
@@ -99,7 +104,6 @@ pub fn min_wait(delta_time: &mut usize) {
         delta_time.add_assign(1);
     }
 }
-
 
 /// An in game tick
 pub fn tick() {
@@ -121,7 +125,6 @@ pub fn roll(chance: f64) -> bool {
 pub struct Age(TimeUnit); // in minutes
 
 impl Age {
-
     pub fn new(years: YearsType, months: FineGrainTimeType, days: FineGrainTimeType) -> Age {
         let years = Years(years).into_minutes();
         let months = Months(months).into_minutes();
@@ -180,10 +183,7 @@ impl Update for Age {
         *self += game::tick_to_game_time_conversion(delta_time);
         //self.add_assign();
     }
-
-
 }
-
 
 #[cfg(test)]
 mod test {
@@ -235,19 +235,10 @@ mod test {
 
     #[test]
     fn update_tree() {
-        let mut tree = UpdateObject::new(
-            Some(
-                (
-                    UpdateObject::new(None),
-                    UpdateObject::new(Some(
-                        (
-                            UpdateObject::new(None),
-                            UpdateObject::new(None)
-                        )
-                    ))
-                )
-            )
-        );
+        let mut tree = UpdateObject::new(Some((
+            UpdateObject::new(None),
+            UpdateObject::new(Some((UpdateObject::new(None), UpdateObject::new(None)))),
+        )));
         let actual = vec![&0, &0, &0, &0, &0];
         assert_eq!(tree.linearized(), actual);
         tree.update(0);
@@ -255,4 +246,3 @@ mod test {
         assert_eq!(tree.linearized(), actual);
     }
 }
-

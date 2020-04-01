@@ -13,18 +13,17 @@ use crate::game::population::Person;
 pub struct Symptom {
     name: String,
     description: String,
-    catch_chance_increase: f64, // percentage increase
-    severity_increase: f64, // percentage increase
-    fatality_increase: f64, // percentage increase
+    catch_chance_increase: f64,         // percentage increase
+    severity_increase: f64,             // percentage increase
+    fatality_increase: f64,             // percentage increase
     internal_spread_rate_increase: f64, // percentage increase
     duration_change: Option<f64>,
     spread_change: Option<f64>,
     additional_effect: Option<fn()>,
-    recovery_function: Option<Arc<dyn Fn(&mut Person) + Send + Sync>>
+    recovery_function: Option<Arc<dyn Fn(&mut Person) + Send + Sync>>,
 }
 
 impl Symptom {
-
     /// Creates a new symptom that affects the way a [Pathogen] behaves
     ///
     /// # Inputs
@@ -71,29 +70,41 @@ impl Symptom {
     ///use infection::game::pathogen::symptoms::Symptom;
     /// Symptom::new("Panic attacks".to_string(), "This panics".to_string(), 25.0, 35.0, 120.0, 0.0, None, None, None, None);
     /// ```
-    pub fn new(name: String,
-               description: String,
-               mut catch_chance_increase: f64,
-               mut severity_increase: f64,
-               mut fatality_increase: f64,
-               mut internal_spread_rate_increase: f64,
-               duration_change: Option<f64>,
-               spread_change: Option<f64>,
-               additional_effect: Option<fn()>,
-               recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
-               -> Self {
-
+    pub fn new(
+        name: String,
+        description: String,
+        mut catch_chance_increase: f64,
+        mut severity_increase: f64,
+        mut fatality_increase: f64,
+        mut internal_spread_rate_increase: f64,
+        duration_change: Option<f64>,
+        spread_change: Option<f64>,
+        additional_effect: Option<fn()>,
+        recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>,
+    ) -> Self {
         if catch_chance_increase.abs() >= 100.0 {
-            panic!("Catch chance increase must be in range (-100, 100), but was given {}", catch_chance_increase)
+            panic!(
+                "Catch chance increase must be in range (-100, 100), but was given {}",
+                catch_chance_increase
+            )
         }
         if severity_increase.abs() >= 100.0 {
-            panic!("Severity increase must be in range (-100, 100), but was given {}", severity_increase)
+            panic!(
+                "Severity increase must be in range (-100, 100), but was given {}",
+                severity_increase
+            )
         }
         if fatality_increase.abs() >= 100.0 {
-            panic!("Fatality increase must be in range (-100, 100), but was given {}", fatality_increase)
+            panic!(
+                "Fatality increase must be in range (-100, 100), but was given {}",
+                fatality_increase
+            )
         }
         if internal_spread_rate_increase.abs() >= 100.0 {
-            panic!("Catch chance increase must be in range (-100, 100), but was given {}", internal_spread_rate_increase)
+            panic!(
+                "Catch chance increase must be in range (-100, 100), but was given {}",
+                internal_spread_rate_increase
+            )
         }
 
         if catch_chance_increase < 0.0 {
@@ -112,8 +123,6 @@ impl Symptom {
             internal_spread_rate_increase = 1.0 + internal_spread_rate_increase / 100.0
         }
 
-
-
         Symptom {
             name,
             description,
@@ -124,10 +133,10 @@ impl Symptom {
             duration_change,
             spread_change,
             additional_effect: match additional_effect {
-                None => { None },
-                Some(f) => { Some(f)},
+                None => None,
+                Some(f) => Some(f),
             },
-            recovery_function: recovery_function.map(|f| f.clone())
+            recovery_function: recovery_function.map(|f| f.clone()),
         }
     }
 
@@ -169,23 +178,19 @@ impl Symptom {
 
     pub fn additional_effect(&self) {
         match &self.additional_effect {
-            None => {},
-            Some(b) => { b() },
+            None => {}
+            Some(b) => b(),
         }
     }
-
 
     pub fn get_recovery_effect(&self) -> &Option<Arc<dyn Fn(&mut Person) + Send + Sync>> {
         &self.recovery_function
     }
-
 }
 
 pub trait Symp {
     fn get_symptom(&self) -> Symptom;
 }
-
-
 
 pub trait SymptomMap {
     fn get_map(self) -> Graph<usize, f64, Arc<Symptom>>;
@@ -212,17 +217,15 @@ impl Debug for Symptom {
 pub struct SymptomMapBuilder {
     symptoms_map: Graph<usize, f64, Arc<Symptom>>,
     symptoms: Vec<Arc<Symptom>>,
-    next_id: usize
+    next_id: usize,
 }
-
-
 
 impl SymptomMapBuilder {
     pub fn new() -> Self {
         Self {
             symptoms_map: Graph::new(),
             symptoms: vec![],
-            next_id: 0
+            next_id: 0,
         }
     }
 
@@ -251,7 +254,12 @@ impl SymptomMapBuilder {
         id
     }
 
-    pub fn add_next_symptom(&mut self, id1: usize, id2: usize, mutation_chance: f64) -> GraphResult<usize> {
+    pub fn add_next_symptom(
+        &mut self,
+        id1: usize,
+        id2: usize,
+        mutation_chance: f64,
+    ) -> GraphResult<usize> {
         self.symptoms_map.add_edge(id1, id2, mutation_chance)
     }
 }
@@ -264,23 +272,30 @@ impl SymptomMap for SymptomMapBuilder {
 
 pub struct SymptomMapBuilderEntry<'a> {
     node: usize,
-    map_builder: &'a mut SymptomMapBuilder
+    map_builder: &'a mut SymptomMapBuilder,
 }
 
-impl <'a> SymptomMapBuilderEntry<'a> {
+impl<'a> SymptomMapBuilderEntry<'a> {
     fn new(node: usize, map_builder: &'a mut SymptomMapBuilder) -> Self {
-        SymptomMapBuilderEntry{ node, map_builder }
+        SymptomMapBuilderEntry { node, map_builder }
     }
 
     pub fn node(&self) -> usize {
         self.node
     }
 
-    pub fn next_symptom(&mut self, symptom: Symptom, mutation_chance: f64) -> SymptomMapBuilderEntry{
+    pub fn next_symptom(
+        &mut self,
+        symptom: Symptom,
+        mutation_chance: f64,
+    ) -> SymptomMapBuilderEntry {
         let output = self.map_builder.add(symptom);
         let id1 = self.node;
         let id2 = output.node;
-        output.map_builder.add_next_symptom(id1, id2, mutation_chance).expect("Should not fail");
+        output
+            .map_builder
+            .add_next_symptom(id1, id2, mutation_chance)
+            .expect("Should not fail");
         output
     }
 
@@ -288,12 +303,12 @@ impl <'a> SymptomMapBuilderEntry<'a> {
         let mut output = Vec::new();
         for (symptom, mutation_chance) in symptoms {
             let next = self.map_builder.push(symptom);
-            self.map_builder.add_next_symptom(self.node, next, mutation_chance);
+            self.map_builder
+                .add_next_symptom(self.node, next, mutation_chance);
             output.push(next);
         }
         output
     }
-
 }
 
 pub mod base {
@@ -329,8 +344,12 @@ pub mod base {
             }
         }
 
-        pub fn create_recovery_function<'a, F>(function: F) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
-            where F: Fn(&'a mut Person) + Send + Sync + 'a {
+        pub fn create_recovery_function<'a, F>(
+            function: F,
+        ) -> Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a>
+        where
+            F: Fn(&'a mut Person) + Send + Sync + 'a,
+        {
             let output: Arc<dyn Fn(&'a mut Person) + Send + Sync + 'a> = Arc::new(function);
             output
         }
@@ -340,12 +359,8 @@ pub mod base {
 
         impl Symp for NeverImmune {
             fn get_symptom(&self) -> Symptom {
-                let function: Arc<dyn Fn(&mut Person) + Send + Sync> = Arc::new(
-                    |person| {
-                        person.remove_immunity()
-                    }
-                );
-
+                let function: Arc<dyn Fn(&mut Person) + Send + Sync> =
+                    Arc::new(|person| person.remove_immunity());
 
                 Symptom::new(
                     "Viral Amnesia".to_string(),
@@ -357,9 +372,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    Some(
-                        &function
-                    )
+                    Some(&function),
                 )
             }
         }
@@ -378,7 +391,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -396,7 +409,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -414,7 +427,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -432,7 +445,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -450,7 +463,7 @@ pub mod base {
                     None,
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -468,7 +481,7 @@ pub mod base {
                     Some(self.0),
                     None,
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -486,7 +499,7 @@ pub mod base {
                     None,
                     Some(self.0),
                     None,
-                    None
+                    None,
                 )
             }
         }
@@ -505,7 +518,7 @@ pub mod base {
                 None,
                 None,
                 None,
-                None
+                None,
             )
         }
     }
@@ -523,7 +536,7 @@ pub mod base {
                 None,
                 None,
                 None,
-                None
+                None,
             )
         }
     }
@@ -553,7 +566,7 @@ mod test {
         let activations = Arc::new(Mutex::new(0));
         p.acquire_symptom(&NeverImmune.get_symptom(), None);
 
-        let mut person  = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
+        let mut person = Person::new(0, Age::new(17, 0, 0), Male, 1.00);
         let arc = Arc::new(p);
         person.infect(&arc);
 
@@ -565,10 +578,8 @@ mod test {
                 match rx.try_recv() {
                     Ok(_) => {
                         return Ok(true);
-                    },
-                    Err(TryRecvError::Empty) => {
-
-                    },
+                    }
+                    Err(TryRecvError::Empty) => {}
                     Err(_) => {
                         return Err(());
                     }
@@ -578,8 +589,7 @@ mod test {
             }
 
             Ok(false)
-        }
-        );
+        });
 
         thread::sleep(Duration::from_secs(1));
         tx.send(());
@@ -590,4 +600,3 @@ mod test {
         }
     }
 }
-
