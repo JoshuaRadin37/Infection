@@ -4,6 +4,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use structure::graph::Graph;
+use structure::time::{Time, TimeUnit};
+use structure::time::TimeUnit::Days;
 
 use crate::game::pathogen::Pathogen;
 use crate::game::pathogen::symptoms::{Symp, Symptom, SymptomMap, SymptomMapBuilder};
@@ -17,8 +19,8 @@ pub trait PathogenType {
 
     fn get_min_count(&self) -> usize;
     fn get_mutativity(&self) -> f64;
-    fn get_recovery_base_chance(&self) -> f64;
-    fn get_recovery_chance_increase(&self) -> f64;
+    fn get_average_duration(&self) -> TimeUnit;
+    fn get_duration_spread(&self) -> TimeUnit;
     fn get_symptoms_map(&self) -> (Graph<usize, f64, Arc<Symptom>>, HashSet<usize>);
 
     fn create_pathogen(&self, name: &str, mutation_ticks: usize) -> Pathogen {
@@ -28,8 +30,8 @@ pub trait PathogenType {
         let mut pathogen = Pathogen::new(fixed_name,
                                          self.get_min_count(),
                                          self.get_mutativity(),
-                                         self.get_recovery_base_chance(),
-                                         self.get_recovery_chance_increase(),
+                                         usize::from(self.get_average_duration().into_minutes()),
+                                         usize::from(self.get_duration_spread().into_minutes()),
                                          graph,
                                          set);
 
@@ -62,12 +64,12 @@ impl PathogenType for Virus {
         0.05
     }
 
-    fn get_recovery_base_chance(&self) -> f64 {
-        0.0001
+    fn get_average_duration(&self) -> TimeUnit {
+        Days(8)
     }
 
-    fn get_recovery_chance_increase(&self) -> f64 {
-        0.10
+    fn get_duration_spread(&self) -> TimeUnit {
+        Days(3)
     }
 
 
@@ -102,7 +104,7 @@ mod test {
         let mut sum_time = Minutes(0);
         let mut times = Vec::new();
         for attempt in 0..ATTEMPTS {
-            let mut infection = Infection::new(pathogen.clone());
+            let mut infection = Infection::new(pathogen.clone(), 1.0);
 
             while !&infection.recovered() {
                 infection.update(20);
@@ -114,7 +116,7 @@ mod test {
             times.push(recover_time);
         }
         let avg_time = sum_time / ATTEMPTS;
-        assert!(avg_time.as_days() >= min && avg_time.as_days() < max, "Aiming for default recover time to be between 3 and 6 days, instead {} ({} minutes)", avg_time.format("{:d}"), avg_time);
+        assert!(avg_time.as_days() >= min && avg_time.as_days() < max, "Aiming for default recover time to be between {} and {} days, instead {} ({} minutes)", min, max, avg_time.format("{:d}"), avg_time);
         println!("Average recovery time = {}", avg_time.format("{:d}d:{:h(24h)}h:{:m(60m)}m"));
     }
 

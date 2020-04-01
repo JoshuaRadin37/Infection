@@ -3,8 +3,9 @@ use std::fmt::{Display, Error, Formatter, Result};
 use std::ops::{Add, AddAssign, Div, Mul, Rem, Sub};
 
 use num_traits::{AsPrimitive, PrimInt, Unsigned};
-use crate::time::TimeUnit::{Minutes, Hours, Days, Years, Months, Weeks};
+
 use crate::time::fmt::TimeFormat;
+use crate::time::TimeUnit::{Days, Hours, Minutes, Months, Weeks, Years};
 
 pub type YearsType = u16;
 pub type FineGrainTimeType = usize;
@@ -15,7 +16,6 @@ pub mod fmt {
     use std::str::FromStr;
 
     use regex::{Captures, Match, Regex};
-
 
     use crate::time::{Time, TimeUnit};
     use crate::time::TimeUnit::{Days, Hours, Minutes, Months, Weeks, Years};
@@ -608,6 +608,33 @@ impl PartialOrd<TimeUnit> for TimeUnit {
         self.as_minutes().partial_cmp(&usize::from(other.as_minutes()))
     }
 }
+
+
+
+impl PartialEq<TimeUnit> for &TimeUnit {
+    fn eq(&self, other: &TimeUnit) -> bool {
+        self.as_minutes().eq(&usize::from(other.as_minutes()))
+    }
+}
+
+impl PartialOrd<TimeUnit> for &TimeUnit {
+    fn partial_cmp(&self, other: &TimeUnit) -> Option<Ordering> {
+        self.as_minutes().partial_cmp(&usize::from(other.as_minutes()))
+    }
+}
+
+impl PartialEq<&TimeUnit> for TimeUnit {
+    fn eq(&self, other: &&TimeUnit) -> bool {
+        self.as_minutes().eq(&usize::from(other.as_minutes()))
+    }
+}
+
+impl PartialOrd<&TimeUnit> for TimeUnit {
+    fn partial_cmp(&self, other: &&TimeUnit) -> Option<Ordering> {
+        self.as_minutes().partial_cmp(&usize::from(other.as_minutes()))
+    }
+}
+
 
 impl Display for TimeUnit {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

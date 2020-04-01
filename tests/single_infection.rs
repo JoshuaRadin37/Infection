@@ -14,20 +14,13 @@ const ATTEMPTS: usize = 100;
 
 #[test]
 fn infection_recovery_test() {
-    let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
-                                         10000,
-                                         0.0005,
-                                         0.0003,
-                                         0.0003,
-                                         Graph::new(),
-        HashSet::new()
-    ));
+    let pathogen = Arc::new(Pathogen::default());
 
     let mut sum_time = Minutes(0);
     let mut times = Vec::new();
 
     for attempt in 0..ATTEMPTS {
-        let mut infection = Infection::new(pathogen.clone());
+        let mut infection = Infection::new(pathogen.clone(), 1.0);
 
         while !&infection.recovered() {
             infection.update(20);

@@ -9,6 +9,7 @@ use rand::Rng;
 
 use structure::graph::Graph;
 use structure::time::{Time, TimeUnit};
+use structure::time::TimeUnit::{Days, Hours};
 
 use crate::game::pathogen::symptoms::{Symptom, SymptomMap};
 use crate::game::population::Person;
@@ -21,6 +22,7 @@ pub mod types;
 
 
 
+#[derive(Clone)]
 pub struct Pathogen {
     name: String, // name of the pathogen
     catch_chance: f64, // chance spreads per interaction
@@ -29,8 +31,8 @@ pub struct Pathogen {
     internal_spread_rate: f64, // chance amount of pathogen increases
     min_count_for_symptoms: usize, // minimum amount of pathogens for spread, be discovered, be fatal, and to recover
     mutation: f64, // chance on new infection the pathogen mutates
-    recovery_chance_base: f64, // chance of recovery after TimeUnit (converted to Minutes)
-    recovery_chance_increase: f64, // change of recovery over time
+    average_recovery_time: usize, // in minutes
+    base_recovery_distance: usize, // in minutes, represents the base range for recovery
     symptoms_map: Graph<usize, f64, Arc<Symptom>>, // map of possible symptoms that a pathogen can have
     acquired_map: HashSet<usize>, // the set of acquired symptoms
     on_recover: Vec<Arc<dyn Fn(&mut Person) + Send + Sync>>, // a vector of functions that affect a person after recovery
@@ -51,8 +53,8 @@ impl Pathogen {
         name: String,
         min_count_for_symptoms: usize,
         mutation: f64,
-        recovery_chance_base: f64,
-        recovery_chance_increase: f64,
+        average_recovery_time: usize, // in minutes
+        base_recovery_distance: usize,
         symptoms_map: R,
         acquired: HashSet<usize>
     ) -> Self
@@ -64,13 +66,13 @@ impl Pathogen {
         let mut pathogen = Pathogen {
             name,
             catch_chance: 0.999999,
-            severity: 0.999999,
-            fatality: 0.999999,
+            severity: 0.9999,
+            fatality: 0.9999999999999,
             internal_spread_rate: 0.99,
             min_count_for_symptoms,
             mutation: 1.0 - mutation,
-            recovery_chance_base: 1.0 - recovery_chance_base,
-            recovery_chance_increase,
+            average_recovery_time, // in minutes
+            base_recovery_distance,
             symptoms_map: symptoms_map.get_map(),
             acquired_map: acquired.clone(),
             on_recover: Vec::new(),
@@ -141,8 +143,16 @@ impl Pathogen {
         self.severity *= 1.0 - symptom.get_severity_increase() / 100.0;
         self.fatality *= 1.0 - symptom.get_fatality_increase() / 100.0;
         self.internal_spread_rate *= 1.0 - symptom.get_internal_spread_rate_increase() / 100.0;
-        if let Some(base) = symptom.get_recovery_chance_base() {
-            self.recovery_chance_base = *base;
+        if let Some(base) = symptom.get_duration_change() {
+            if base.is_infinite() {
+                self.average_recovery_time = std::usize::MAX;
+            } else {
+                self.average_recovery_time = (self.average_recovery_time as f64 * *base) as usize;
+            }
+
+        }
+        if let Some(spread) = symptom.get_spread_change() {
+            self.base_recovery_distance = (self.base_recovery_distance  as f64 * *spread) as usize;
         }
         if let Some(function) = symptom.get_recovery_effect() {
             let index = self.on_recover.len();
@@ -159,6 +169,13 @@ impl Pathogen {
         self.severity /= 1.0 - symptom.get_severity_increase() / 100.0;
         self.fatality /= 1.0 - symptom.get_fatality_increase() / 100.0;
         self.internal_spread_rate /= 1.0 -symptom.get_internal_spread_rate_increase() / 100.0;
+
+        if let Some(base) = symptom.get_duration_change() {
+            self.average_recovery_time = (self.average_recovery_time as f64 / *base) as usize;
+        }
+        if let Some(spread) = symptom.get_spread_change() {
+            self.base_recovery_distance = (self.base_recovery_distance  as f64 / *spread) as usize;
+        }
 
         if let Some(id) = symptom_id {
             if self.recover_function_position.contains_key(&id) {
@@ -184,19 +201,18 @@ impl Pathogen {
         1.0 - self.fatality
     }
 
-    fn recovery_chance_base(&self) -> f64 {
-        1.0 - self.recovery_chance_base
+    pub fn average_recovery_time(&self) -> usize {
+        self.average_recovery_time
+    }
+
+    pub fn base_recovery_distance(&self) -> usize {
+        self.base_recovery_distance
     }
 
     pub fn internal_spread_rate(&self) -> f64 {
         1.0 - self.internal_spread_rate
     }
 
-    fn recover_chance(&self, passed: TimeUnit) -> f64 {
-        let time = usize::from(passed.into_minutes()) as f64;
-        // days * days * self.recovery_chance_increase * self.recovery_chance_base / (24.0 * 60.0)
-        1.0 / ( 1.0 + std::f64::consts::E.powf(time * self.recovery_chance_increase - 3.0)) / (24.0 * 60.0)
-    }
 
     fn add_recovery_symptom<F>(&mut self, function: F)
         where F : 'static + Fn(&mut Person) + Send + Sync {
@@ -211,22 +227,8 @@ impl Pathogen {
 
     pub fn mutate(&self) -> Self {
 
-        let mut mutated_graph = self.symptoms_map.clone();
-        let mut next_pathogen = Pathogen {
-            name: self.name.clone(),
-            catch_chance: self.catch_chance,
-            severity: self.severity,
-            fatality: self.fatality,
-            internal_spread_rate: self.internal_spread_rate,
-            min_count_for_symptoms: self.min_count_for_symptoms,
-            mutation: self.mutation,
-            recovery_chance_base: self.recovery_chance_base,
-            recovery_chance_increase: self.recovery_chance_increase,
-            symptoms_map: mutated_graph,
-            acquired_map: self.acquired_map.clone(),
-            on_recover: self.on_recover.clone(),
-            recover_function_position: self.recover_function_position.clone()
-        };
+
+        let mut next_pathogen = self.clone();
 
 
         let potential_gains = self.get_potential_gains();
@@ -256,8 +258,8 @@ impl Default for Pathogen {
         Pathogen::new("Testogen".to_string(),
                       100000000,
                       0.0005,
-                      0.03,
-                      0.03,
+                      usize::from((Days(4) + Hours(12)).into_minutes()),
+                      usize::from((Days(1) + Hours(12)).into_minutes()),
                       Graph::new(),
                       HashSet::new()
         )
@@ -287,7 +289,8 @@ mod test {
             1.0001,
             1.0,
             1.0,
-            Some(0.0),
+            None,
+            None,
             None,
             None
         );
@@ -310,7 +313,8 @@ mod test {
             1.0001,
             1.0,
             1.0,
-            Some(0.0),
+            None,
+            None,
             None,
             None,
         );
@@ -344,7 +348,8 @@ mod test {
             1.0001,
             1.0,
             1.0,
-            Some(0.0),
+            None,
+            None,
             None,
             Some(
                 &function

@@ -60,7 +60,7 @@ impl Controller for InteractionController {
                 'outer:
                 for _ in 0..count {
 
-                    if roll(INTERACTION_CHANCE * severity_effect) { // Whether the person actually interacts with a person
+                    if roll(INTERACTION_CHANCE * severity_effect * infected.condition()) { // Whether the person actually interacts with a person
 
                         if let Some((arc, mut other)) = {
                             let output = {

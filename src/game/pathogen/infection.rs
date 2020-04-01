@@ -4,6 +4,9 @@ use std::sync::Arc;
 use rand::distributions::Distribution;
 use rand::Rng;
 
+use structure::time::TimeUnit;
+use structure::time::TimeUnit::Minutes;
+
 use crate::game::{Age, roll, tick_to_game_time_conversion, Update};
 use crate::game::pathogen::Pathogen;
 
@@ -11,16 +14,30 @@ use crate::game::pathogen::Pathogen;
 pub struct Infection {
     pathogen: Arc<Pathogen>, // pathogen
     infection_age: Age, // age of the infection
+    predetermined_duration: TimeUnit,
     pathogen_count: usize,
     recovered: bool // if the person has recovered
 }
 
 impl Infection {
 
-    pub fn new(pathogen: Arc<Pathogen>) -> Self {
+    pub fn new(pathogen: Arc<Pathogen>, condition: f64) -> Self {
+        if pathogen.average_recovery_time() <= pathogen.base_recovery_distance() {
+            panic!("Pathogen recovery range {} is greater than the average recovery time {}", pathogen.base_recovery_distance(),  pathogen.average_recovery_time());
+        }
+        let min_duration = usize::max(0, pathogen.average_recovery_time() - (pathogen.base_recovery_distance() as f64 * condition.powi(2)) as usize);
+        let max_duration = pathogen.average_recovery_time() + (pathogen.base_recovery_distance() as f64 / condition) as usize;
+
+
+        let duration = if min_duration == max_duration {
+            Minutes(min_duration)
+        } else {
+            Minutes(rand::thread_rng().gen_range(min_duration, max_duration))
+        };
         Infection {
             pathogen,
             infection_age: Age::new(0, 0 ,0),
+            predetermined_duration: duration,
             pathogen_count: 100,
             recovered: false
         }
@@ -40,10 +57,9 @@ impl Infection {
     }
 
     pub fn attempt_recover(&mut self) {
-
-        let ceiling = self.pathogen.recover_chance(self.infection_age.time_unit().clone());
-
-        self.recovered = roll(ceiling)
+        if self.predetermined_duration <= self.infection_age.time_unit() {
+            self.recovered = true;
+        }
     }
 
     pub fn infection_age(&self) -> &Age {
@@ -81,16 +97,9 @@ mod test {
     /// Checks if an infection will eventually become mature
     #[test]
     fn infection_starts() {
-        let pathogen = Arc::new(Pathogen::new("Testogen".to_string(),
-                                             1000,
-                                             0.0005,
-                                             0.03,
-                                             1.0,
-                                             Graph::new(),
-                                             HashSet::new()
-        ));
+        let pathogen = Arc::new(Pathogen::default());
 
-        let mut infection = Infection::new(pathogen.clone());
+        let mut infection = Infection::new(pathogen.clone(), 1.0);
         let mut time = std::time::SystemTime::now();
 
         while infection.pathogen_count < pathogen.min_count_for_symptoms {

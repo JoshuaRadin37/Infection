@@ -17,7 +17,8 @@ pub struct Symptom {
     severity_increase: f64, // percentage increase
     fatality_increase: f64, // percentage increase
     internal_spread_rate_increase: f64, // percentage increase
-    recovery_chance_base: Option<f64>,
+    duration_change: Option<f64>,
+    spread_change: Option<f64>,
     additional_effect: Option<fn()>,
     recovery_function: Option<Arc<dyn Fn(&mut Person) + Send + Sync>>
 }
@@ -56,6 +57,7 @@ impl Symptom {
     ///                 1.0,
     ///                 None,
     ///                 None,
+    ///                 None,
     ///                 None
     ///             );
     ///
@@ -67,7 +69,7 @@ impl Symptom {
     ///
     /// ```rust,should_panic
     ///use infection::game::pathogen::symptoms::Symptom;
-    /// Symptom::new("Panic attacks".to_string(), "This panics".to_string(), 25.0, 35.0, 120.0, 0.0, None, None, None);
+    /// Symptom::new("Panic attacks".to_string(), "This panics".to_string(), 25.0, 35.0, 120.0, 0.0, None, None, None, None);
     /// ```
     pub fn new(name: String,
                description: String,
@@ -75,7 +77,8 @@ impl Symptom {
                mut severity_increase: f64,
                mut fatality_increase: f64,
                mut internal_spread_rate_increase: f64,
-               recovery_chance_base: Option<f64>,
+               duration_change: Option<f64>,
+               spread_change: Option<f64>,
                additional_effect: Option<fn()>,
                recovery_function: Option<&Arc<dyn Fn(&mut Person) + Send + Sync>>)
                -> Self {
@@ -118,7 +121,8 @@ impl Symptom {
             severity_increase,
             fatality_increase,
             internal_spread_rate_increase,
-            recovery_chance_base,
+            duration_change,
+            spread_change,
             additional_effect: match additional_effect {
                 None => { None },
                 Some(f) => { Some(f)},
@@ -151,12 +155,16 @@ impl Symptom {
         self.internal_spread_rate_increase
     }
 
-    pub fn get_recovery_chance_base(&self) -> &Option<f64> {
-        &self.recovery_chance_base
+    pub fn get_duration_change(&self) -> &Option<f64> {
+        &self.duration_change
+    }
+
+    pub fn get_spread_change(&self) -> &Option<f64> {
+        &self.spread_change
     }
 
     pub fn can_reverse(&self) -> bool {
-        self.additional_effect.is_none() && self.recovery_chance_base.is_none()
+        self.additional_effect.is_none() && self.duration_change.map_or(true, |f| f.is_finite())
     }
 
     pub fn additional_effect(&self) {
@@ -297,6 +305,8 @@ pub mod base {
 
     /// Cheat symptoms, way too powerful or weak for standard viruses
     pub mod cheat {
+        use std::f64::INFINITY;
+
         use super::*;
 
         /// Person can never recover
@@ -311,6 +321,7 @@ pub mod base {
                     1.0001,
                     1.0,
                     1.0,
+                    Some(INFINITY),
                     Some(0.0),
                     None,
                     None
@@ -345,6 +356,7 @@ pub mod base {
                     99.0,
                     None,
                     None,
+                    None,
                     Some(
                         &function
                     )
@@ -365,6 +377,7 @@ pub mod base {
                     99.0,
                     None,
                     None,
+                    None,
                     None
                 )
             }
@@ -380,6 +393,7 @@ pub mod base {
                     0.0,
                     0.0,
                     0.0,
+                    None,
                     None,
                     None,
                     None
@@ -399,6 +413,7 @@ pub mod base {
                     self.0,
                     None,
                     None,
+                    None,
                     None
                 )
             }
@@ -416,6 +431,7 @@ pub mod base {
                     0.0,
                     None,
                     None,
+                    None,
                     None
                 )
             }
@@ -427,11 +443,48 @@ pub mod base {
                 Symptom::new(
                     format!("Custom Fatality {}", self.0),
                     "Genetics are wild".to_string(),
-                    1.0,
-                    1.0,
+                    0.0,
+                    0.0,
                     self.0,
-                    1.0,
+                    0.0,
                     None,
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomDuration(pub f64);
+        impl Symp for CustomDuration {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Duration {}", self.0),
+                    "Genetics are wild".to_string(),
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    Some(self.0),
+                    None,
+                    None,
+                    None
+                )
+            }
+        }
+
+        pub struct CustomSpread(pub f64);
+        impl Symp for CustomSpread {
+            fn get_symptom(&self) -> Symptom {
+                Symptom::new(
+                    format!("Custom Spread {}", self.0),
+                    "Genetics are wild".to_string(),
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    None,
+                    Some(self.0),
                     None,
                     None
                 )
@@ -451,6 +504,7 @@ pub mod base {
                 20.0,
                 None,
                 None,
+                None,
                 None
             )
         }
@@ -466,6 +520,7 @@ pub mod base {
                 1.5,
                 1.0,
                 1.0,
+                None,
                 None,
                 None,
                 None

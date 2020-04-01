@@ -116,9 +116,12 @@ impl Person {
             age => {
                 10.0 * (-(age as i16) as f64 + 120.0).sqrt()
             }
-        }) * sex.get_health_modification_factor() * pre_existing_condition) as u32
+        }) * 10.0 * sex.get_health_modification_factor() * pre_existing_condition) as u32
     }
 
+    pub fn condition(&self) -> f64 {
+        (*self.health_points.read().unwrap() as f64 / 1000.0) * self.pre_existing_condition
+    }
 
     pub fn health_points(&self) -> &RwLock<u32> {
         &self.health_points
@@ -165,7 +168,7 @@ impl Person {
 
     pub fn infect(&mut self, pathogen: &Arc<Pathogen>) -> bool {
         if self.infection.lock().unwrap().is_none() {
-            *self.infection.lock().unwrap() = Some(Infection::new(pathogen.clone()));
+            *self.infection.lock().unwrap() = Some(Infection::new(pathogen.clone(), self.condition()));
             true
         } else {
             false
@@ -265,6 +268,7 @@ impl Update for Person {
             };
 
             if self.infected() {
+                let mut rate = 1.0;
                 let get_hurt = {
                     // remove infection mutex as fast as possible
                     match & *self.infection.lock().unwrap() {
@@ -273,6 +277,7 @@ impl Update for Person {
                             if !i.active_case() {
                                 false
                             }else {
+                                rate = 1.0 / ( 1.0 - i.get_pathogen().severity());
                                 roll(i.get_pathogen().fatality())
                             }
                         },
@@ -284,11 +289,11 @@ impl Update for Person {
                     let change = &mut *self.condition.lock().unwrap();
                     let mut hp_guard = self.health_points.write().unwrap();
                     *hp_guard -= u32::min(*hp_guard,
-                        match change {
-                        Condition::Normal => { 1 },
-                        Condition::NeedsHospital => { 3 },
-                        Condition::Hospitalized => { 2 },
-                    });
+                                          ((match change {
+                        Condition::Normal => { 1.0 },
+                        Condition::NeedsHospital => { 3.0 },
+                        Condition::Hospitalized => { 2.0 } })  * rate) as u32
+                    );
 
 
                     match *hp_guard {
